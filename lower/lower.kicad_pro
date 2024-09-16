@@ -579,8 +579,8 @@
         "pattern": "/V*"
       },
       {
-        "netclass": "Default",
-        "pattern": "/Psense"
+        "netclass": "Power-",
+        "pattern": "GNDPWR"
       }
     ]
   },
