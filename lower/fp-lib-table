@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "lower-all")(type "KiCad")(uri "${KIPRJMOD}/lower-all.pretty")(options "")(descr ""))
+)
