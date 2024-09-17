@@ -589,11 +589,11 @@
       "gencad": "",
       "idf": "",
       "netlist": "",
-      "plot": "C:/Users/engi/Documents/kicad_projects/nano_quadcopter/lower/",
+      "plot": "C:/Users/engi/Documents/kicad_projects/nano_quadcopter/lower/lower_v0.1.0/",
       "pos_files": "",
       "specctra_dsn": "",
       "step": "",
-      "svg": "",
+      "svg": "C:/Users/engi/Documents/kicad_projects/nano_quadcopter/lower/lower_v0.1.0/",
       "vrml": ""
     },
     "page_layout_descr_file": ""
