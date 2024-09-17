@@ -1,4 +1,5 @@
 (fp_lib_table
   (version 7)
   (lib (name "Module_RaspberryPi_Pico")(type "KiCad")(uri "C:/Users/engi/Documents/kicad_projects/nano_quadcopter/RaspberryPi_Pico/Module_RaspberryPi_Pico.pretty")(options "")(descr ""))
+  (lib (name "SEN0142")(type "KiCad")(uri "C:/Users/engi/Documents/kicad_projects/nano_quadcopter/SEN0142")(options "")(descr ""))
 )
