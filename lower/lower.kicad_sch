@@ -3277,7 +3277,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "270b99c3-bc4a-4374-b1fc-96696ee531fc")
-		(property "Reference" "WireBatt1"
+		(property "Reference" "Batt1"
 			(at 245.11 24.13 0)
 			(do_not_autoplace yes)
 			(effects
@@ -3331,7 +3331,7 @@
 		(instances
 			(project ""
 				(path "/38495dd5-5138-4faa-88d9-26986d1150e3"
-					(reference "WireBatt1")
+					(reference "Batt1")
 					(unit 1)
 				)
 			)

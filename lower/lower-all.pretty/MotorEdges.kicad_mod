@@ -4,7 +4,7 @@
 	(generator_version "8.0")
 	(layer "F.Cu")
 	(property "Reference" "REF**"
-		(at 0.5 -6 0)
+		(at 0.5 -5 0)
 		(unlocked yes)
 		(layer "F.SilkS")
 		(uuid "00e4139b-0a71-4152-891f-1713d7e43977")
@@ -16,7 +16,7 @@
 		)
 	)
 	(property "Value" "MotorEdges"
-		(at 0 1 0)
+		(at 0.25 6.5 0)
 		(unlocked yes)
 		(layer "F.Fab")
 		(uuid "4bada855-8a6a-4ce5-aa92-bd22ed664f37")
@@ -577,15 +577,16 @@
 		(uuid "80597789-a8ca-46f1-b65b-0758e3bda949")
 	)
 	(fp_text user "${REFERENCE}"
-		(at 0 2.5 0)
+		(at 0.5 -6.5 0)
 		(unlocked yes)
-		(layer "F.Fab")
+		(layer "B.SilkS")
 		(uuid "cafaf916-f13b-4476-99f7-8b837a4589c6")
 		(effects
 			(font
 				(size 1 1)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 )

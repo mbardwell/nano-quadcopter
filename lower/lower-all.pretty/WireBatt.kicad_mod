@@ -67,7 +67,7 @@
 		)
 	)
 	(fp_text user "Black"
-		(at 5 -4.5 -90)
+		(at 7 5.75 0)
 		(unlocked yes)
 		(layer "B.SilkS")
 		(uuid "8b624c1f-7b01-44dc-958a-d962897e40e8")
@@ -80,7 +80,7 @@
 		)
 	)
 	(fp_text user "Red"
-		(at -5 -4.5 -90)
+		(at -6.5 4.5 180)
 		(unlocked yes)
 		(layer "B.SilkS")
 		(uuid "b88bc218-abc2-409f-a73f-697515f7564a")
@@ -93,7 +93,7 @@
 		)
 	)
 	(fp_text user "Black"
-		(at 5 -4.5 90)
+		(at 2.75 5.75 0)
 		(unlocked yes)
 		(layer "F.SilkS")
 		(uuid "2c471007-fe8a-4043-b3c8-4c578ae122f4")
@@ -106,7 +106,7 @@
 		)
 	)
 	(fp_text user "Red"
-		(at -5 -4.5 90)
+		(at -6.5 5.75 0)
 		(unlocked yes)
 		(layer "F.SilkS")
 		(uuid "57778f96-9d4d-46dd-b6c7-d8c99c517be6")
