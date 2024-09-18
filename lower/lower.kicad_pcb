@@ -76,7 +76,7 @@
 			(mirror no)
 			(drillshape 0)
 			(scaleselection 1)
-			(outputdirectory "C:/Users/engi/Documents/kicad_projects/nano_quadcopter/lower/v0.2.0/")
+			(outputdirectory "C:/Users/engi/Documents/kicad_projects/nano_quadcopter/lower/v0.2.1/")
 		)
 	)
 	(net 0 "")
