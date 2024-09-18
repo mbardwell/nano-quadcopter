@@ -427,8 +427,12 @@
     }
   },
   "libraries": {
-    "pinned_footprint_libs": [],
-    "pinned_symbol_libs": []
+    "pinned_footprint_libs": [
+      "upper-all"
+    ],
+    "pinned_symbol_libs": [
+      "upper-all"
+    ]
   },
   "meta": {
     "filename": "upper.kicad_pro",
@@ -470,7 +474,7 @@
       "pos_files": "",
       "specctra_dsn": "",
       "step": "",
-      "svg": "",
+      "svg": "C:/Users/engi/Documents/kicad_projects/nano_quadcopter/upper/",
       "vrml": ""
     },
     "page_layout_descr_file": ""

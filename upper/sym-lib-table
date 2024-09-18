@@ -3,4 +3,5 @@
   (lib (name "MCU_Module_RaspberryPi_Pico")(type "KiCad")(uri "C:/Users/engi/Documents/kicad_projects/nano_quadcopter/RaspberryPi_Pico/MCU_Module_RaspberryPi_Pico.kicad_sym")(options "")(descr ""))
   (lib (name "lower-all")(type "KiCad")(uri "C:/Users/engi/Documents/kicad_projects/nano_quadcopter/lower/lower-all.kicad_sym")(options "")(descr ""))
   (lib (name "SEN0142")(type "KiCad")(uri "C:/Users/engi/Documents/kicad_projects/nano_quadcopter/SEN0142/SEN0142.kicad_sym")(options "")(descr ""))
+  (lib (name "upper-all")(type "KiCad")(uri "${KIPRJMOD}/upper-all.kicad_sym")(options "")(descr ""))
 )
