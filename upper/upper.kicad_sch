@@ -3621,17 +3621,6 @@
 		)
 		(uuid "f333d6e0-de17-4c6a-be7b-4522f2fcf76a")
 	)
-	(text "TODO:\n* Review RESISTOR use case\n* Review 510/2k voltage divider on lower\n* Route"
-		(exclude_from_sim no)
-		(at 80.264 28.702 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "416292dd-03cc-4d82-a395-a5a7dabb6939")
-	)
 	(text "Mounting Holes"
 		(exclude_from_sim no)
 		(at 51.308 51.308 0)
