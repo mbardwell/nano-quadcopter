@@ -2,21 +2,24 @@
 #include <Servo.h>
 #include <Wire.h>
 
-constexpr unsigned M1_PIN_CONTROL = 0;
-constexpr unsigned M2_PIN_CONTROL = 2;
-constexpr unsigned M3_PIN_CONTROL = 4;
-constexpr unsigned M4_PIN_CONTROL = 6;
-Servo M4_ESC, M1_ESC, M3_ESC, M2_ESC;
-
-constexpr byte I2C_SDA = 8;
-constexpr byte I2C_SCL = 9;
+constexpr pin_size_t PIN_M1 = 0;
+constexpr pin_size_t PIN_M2 = 2;
+constexpr pin_size_t PIN_M3 = 4;
+constexpr pin_size_t PIN_M4 = 6;
+constexpr pin_size_t PIN_I2C_SDA = 8;
+constexpr pin_size_t PIN_I2C_SCL = 9;
+constexpr pin_size_t PIN_GREEN_LED = 22;
+constexpr pin_size_t PIN_IMON = A0;
+constexpr pin_size_t PIN_VMON = A1;
+constexpr unsigned MAX_RUNS = 1;
 constexpr byte I2C_ADDRESS_MPU = 0x68;
 
+Servo m1_esc, m2_esc, m3_esc, m4_esc;
 Adafruit_BMP280 bmp;
 Adafruit_Sensor *bmp_temp = bmp.getTemperatureSensor();
 Adafruit_Sensor *bmp_pressure = bmp.getPressureSensor();
-const unsigned MAX_RUNS = 1;
-float RateRoll, RatePitch, RateYaw;
+float current, voltage;
+float rate_roll, rate_pitch, rate_yaw;
 sensors_event_t temp_event, pressure_event;
 
 bool mpu_signals();
@@ -25,28 +28,38 @@ bool bmp_signals();
 void bmp_setup();
 void motor_signals();
 void motor_setup();
+bool pmon_signals();
+void pmon_setup();
 
 void setup() {
   Serial.begin(115200);
-  Wire.setSDA(I2C_SDA);
-  Wire.setSCL(I2C_SCL);
+  Wire.setSDA(PIN_I2C_SDA);
+  Wire.setSCL(PIN_I2C_SCL);
   Wire.setClock(400000);
   Wire.begin();
   delay(250);
 
+  pmon_setup();
   mpu_setup();
   bmp_setup();
   // motor_setup();
 }
 
 void loop() {
+  if (pmon_signals()) {
+    Serial.print("Voltage [V]= ");
+    Serial.print(voltage);
+    Serial.print(" Current [A]= ");
+    Serial.println(current);
+  }
+
   if (mpu_signals()) {
     Serial.print("Roll rate [°/s]= ");
-    Serial.print(RateRoll);
+    Serial.print(rate_roll);
     Serial.print(" Pitch Rate [°/s]= ");
-    Serial.print(RatePitch);
+    Serial.print(rate_pitch);
     Serial.print(" Yaw Rate [°/s]= ");
-    Serial.println(RateYaw);
+    Serial.println(rate_yaw);
   }
 
   if (bmp_signals()) {
@@ -59,6 +72,33 @@ void loop() {
   // motor_signals();
 
   delay(500);
+}
+
+void pmon_setup() {
+  pinMode(PIN_IMON, INPUT);
+  pinMode(PIN_VMON, INPUT);
+  pinMode(PIN_GREEN_LED, OUTPUT);
+}
+
+bool pmon_signals() {
+  const float VMAX = 3.3;
+  const float ADC_MAX = 1023.0;
+  const int BTS_RATIO = 14000;
+  const int LOWER_R1 = 503;
+  const int LOWER_R4 = 1000;
+  const int LOWER_R5 = 330;
+  const int RPT_TIME_MS = 1000;
+  static int hold = 0;
+  static int _voltage, _current;
+  _current = analogRead(PIN_IMON);
+  _voltage = analogRead(PIN_VMON);
+  current = _current * (VMAX / ADC_MAX) * BTS_RATIO / LOWER_R1;
+  voltage = _voltage * (VMAX / ADC_MAX) * ((LOWER_R4 + LOWER_R5) / (LOWER_R5));
+  if (millis() - hold > RPT_TIME_MS) {
+    digitalWrite(PIN_GREEN_LED, digitalRead(PIN_GREEN_LED) == HIGH ? LOW : HIGH);
+    hold = millis();
+  }
+  return true;
 }
 
 void mpu_setup() {
@@ -91,9 +131,9 @@ bool mpu_signals() {
     GyroY = Wire.read()<<8 | Wire.read();
     GyroZ = Wire.read()<<8 | Wire.read();
     
-    RateRoll = static_cast<float>(GyroX) / DEG_TO_LSB;
-    RatePitch = static_cast<float>(GyroY) / DEG_TO_LSB;
-    RateYaw = static_cast<float>(GyroZ) / DEG_TO_LSB;
+    rate_roll = static_cast<float>(GyroX) / DEG_TO_LSB;
+    rate_pitch = static_cast<float>(GyroY) / DEG_TO_LSB;
+    rate_yaw = static_cast<float>(GyroZ) / DEG_TO_LSB;
     
     return true;
   }
@@ -131,15 +171,15 @@ bool bmp_signals() {
 }
 
 void motor_setup() {
-  M1_ESC.attach(M1_PIN_CONTROL);
-  M2_ESC.attach(M2_PIN_CONTROL);
-  M3_ESC.attach(M3_PIN_CONTROL);
-  M4_ESC.attach(M4_PIN_CONTROL);
+  m1_esc.attach(PIN_M1);
+  m2_esc.attach(PIN_M2);
+  m3_esc.attach(PIN_M3);
+  m4_esc.attach(PIN_M4);
   Serial.begin(115200);
-  M1_ESC.writeMicroseconds(0);
-  M2_ESC.writeMicroseconds(0);
-  M3_ESC.writeMicroseconds(0);
-  M4_ESC.writeMicroseconds(0);
+  m1_esc.writeMicroseconds(0);
+  m2_esc.writeMicroseconds(0);
+  m3_esc.writeMicroseconds(0);
+  m4_esc.writeMicroseconds(0);
   delay(5000);
 }
 
@@ -155,35 +195,35 @@ void motor_signals() {
 
   if (runs >= MAX_RUNS) {
     Serial.println("Not running");
-    M1_ESC.writeMicroseconds(0);
-    M2_ESC.writeMicroseconds(0);
-    M3_ESC.writeMicroseconds(0);
-    M4_ESC.writeMicroseconds(0);
+    m1_esc.writeMicroseconds(0);
+    m2_esc.writeMicroseconds(0);
+    m3_esc.writeMicroseconds(0);
+    m4_esc.writeMicroseconds(0);
     delay(1000);
     return;
   }
 
   if ((millis() - hold) > AUTO_START_EVERY_MS) {
     for (value = AUTO_MIN_VALUE; value < AUTO_MAX_VALUE; value++) {
-      M1_ESC.writeMicroseconds(value);
-      M4_ESC.writeMicroseconds(value);
-      M3_ESC.writeMicroseconds(value);
-      M2_ESC.writeMicroseconds(value);
+      m1_esc.writeMicroseconds(value);
+      m4_esc.writeMicroseconds(value);
+      m3_esc.writeMicroseconds(value);
+      m2_esc.writeMicroseconds(value);
       delay(AUTO_STAGE_SIT_MS);
     }
     for (value = AUTO_MAX_VALUE; value > AUTO_MIN_VALUE; value--) {
       Serial.println(value);
-      M1_ESC.writeMicroseconds(value);
-      M2_ESC.writeMicroseconds(value);
-      M3_ESC.writeMicroseconds(value);
-      M4_ESC.writeMicroseconds(value);
+      m1_esc.writeMicroseconds(value);
+      m2_esc.writeMicroseconds(value);
+      m3_esc.writeMicroseconds(value);
+      m4_esc.writeMicroseconds(value);
       delay(AUTO_STAGE_SIT_MS);
     }
 
-    M1_ESC.writeMicroseconds(0);
-    M2_ESC.writeMicroseconds(0);
-    M3_ESC.writeMicroseconds(0);
-    M4_ESC.writeMicroseconds(0);
+    m1_esc.writeMicroseconds(0);
+    m2_esc.writeMicroseconds(0);
+    m3_esc.writeMicroseconds(0);
+    m4_esc.writeMicroseconds(0);
 
     runs++;
     hold = millis();
