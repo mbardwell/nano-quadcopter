@@ -1,24 +1,23 @@
 // https://www.instructables.com/ESC-Programming-on-Arduino-Hobbyking-ESC/
 #include <Servo.h>
 
-// All w.r.t the quadcopter upright and snout facing away from you
-const unsigned FR_PIN_CONTROL = 11;
-const unsigned FL_PIN_CONTROL = 4;
-const unsigned BL_PIN_CONTROL = 20;
-const unsigned BR_PIN_CONTROL = 0;
+const unsigned M1_PIN_CONTROL = 0;
+const unsigned M2_PIN_CONTROL = 2;
+const unsigned M3_PIN_CONTROL = 4;
+const unsigned M4_PIN_CONTROL = 6;
 const unsigned MAX_RUNS = 1;
-Servo FL_ESC, FR_ESC, BL_ESC, BR_ESC;
+Servo M4_ESC, M1_ESC, M3_ESC, M2_ESC;
 
 void setup() {
-  FR_ESC.attach(FR_PIN_CONTROL);
-  FL_ESC.attach(FL_PIN_CONTROL);
-  BL_ESC.attach(BL_PIN_CONTROL);
-  BR_ESC.attach(BR_PIN_CONTROL);
+  M1_ESC.attach(M1_PIN_CONTROL);
+  M2_ESC.attach(M2_PIN_CONTROL);
+  M3_ESC.attach(M3_PIN_CONTROL);
+  M4_ESC.attach(M4_PIN_CONTROL);
   Serial.begin(115200);
-  FR_ESC.writeMicroseconds(0);
-  FL_ESC.writeMicroseconds(0);
-  BL_ESC.writeMicroseconds(0);
-  BR_ESC.writeMicroseconds(0);
+  M1_ESC.writeMicroseconds(0);
+  M2_ESC.writeMicroseconds(0);
+  M3_ESC.writeMicroseconds(0);
+  M4_ESC.writeMicroseconds(0);
   delay(5000);
 }
 
@@ -34,43 +33,35 @@ void loop() {
 
   if (runs >= MAX_RUNS) {
     Serial.println("Not running");
-    FR_ESC.writeMicroseconds(0);
-    FL_ESC.writeMicroseconds(0);
-    BL_ESC.writeMicroseconds(0);
-    BR_ESC.writeMicroseconds(0);
+    M1_ESC.writeMicroseconds(0);
+    M2_ESC.writeMicroseconds(0);
+    M3_ESC.writeMicroseconds(0);
+    M4_ESC.writeMicroseconds(0);
     delay(1000);
     return;
   }
 
-  int FR_CATCH_UP_DELAY = 5;
   if ((millis() - hold) > AUTO_START_EVERY_MS) {
-    int fr_catch_up_counter = 0;
     for (value = AUTO_MIN_VALUE; value < AUTO_MAX_VALUE; value++) {
-      Serial.println(value);
-      if (fr_catch_up_counter++ < FR_CATCH_UP_DELAY) {
-        Serial.println("Catching up front right motor");
-        FR_ESC.writeMicroseconds(value);
-        delay(AUTO_STAGE_SIT_MS);
-        continue;
-      }
-      FL_ESC.writeMicroseconds(value);
-      BL_ESC.writeMicroseconds(value);
-      BR_ESC.writeMicroseconds(value);
+      M1_ESC.writeMicroseconds(value);
+      M4_ESC.writeMicroseconds(value);
+      M3_ESC.writeMicroseconds(value);
+      M2_ESC.writeMicroseconds(value);
       delay(AUTO_STAGE_SIT_MS);
     }
     for (value = AUTO_MAX_VALUE; value > AUTO_MIN_VALUE; value--) {
       Serial.println(value);
-      FR_ESC.writeMicroseconds(value);
-      FL_ESC.writeMicroseconds(value);
-      BL_ESC.writeMicroseconds(value);
-      BR_ESC.writeMicroseconds(value);
+      M1_ESC.writeMicroseconds(value);
+      M2_ESC.writeMicroseconds(value);
+      M3_ESC.writeMicroseconds(value);
+      M4_ESC.writeMicroseconds(value);
       delay(AUTO_STAGE_SIT_MS);
     }
 
-    FR_ESC.writeMicroseconds(0);
-    FL_ESC.writeMicroseconds(0);
-    BL_ESC.writeMicroseconds(0);
-    BR_ESC.writeMicroseconds(0);
+    M1_ESC.writeMicroseconds(0);
+    M2_ESC.writeMicroseconds(0);
+    M3_ESC.writeMicroseconds(0);
+    M4_ESC.writeMicroseconds(0);
 
     runs++;
     hold = millis();
