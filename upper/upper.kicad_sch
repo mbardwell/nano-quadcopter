@@ -3621,6 +3621,17 @@
 		)
 		(uuid "f333d6e0-de17-4c6a-be7b-4522f2fcf76a")
 	)
+	(text "V1 issues:\n* R1 is 330 0805 which we don't have. Using 470\n* BMP1 mounting hole placement is wrong"
+		(exclude_from_sim no)
+		(at 83.7795 26.6053 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "3cae7d13-5a90-4abe-bca4-72e97315ecb5")
+	)
 	(text "Mounting Holes"
 		(exclude_from_sim no)
 		(at 51.308 51.308 0)
