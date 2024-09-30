@@ -42,18 +42,29 @@ void setup() {
   pmon_setup();
   mpu_setup();
   bmp_setup();
-  // motor_setup();
+  motor_setup();
+
+  pinMode(PIN_GREEN_LED, OUTPUT);
 }
 
 void loop() {
-  if (pmon_signals()) {
+  const int PRINT_PERIOD_MS = 500;
+  static int print_hold = 0;
+  static bool do_print = false;
+
+  if ((millis() - print_hold) > PRINT_PERIOD_MS) {
+    do_print = true;
+    print_hold = millis();
+  }
+
+  if (pmon_signals() && do_print) {
     Serial.print("Voltage [V]= ");
     Serial.print(voltage);
     Serial.print(" Current [A]= ");
     Serial.println(current);
   }
 
-  if (mpu_signals()) {
+  if (mpu_signals() && do_print) {
     Serial.print("Roll rate [°/s]= ");
     Serial.print(rate_roll);
     Serial.print(" Pitch Rate [°/s]= ");
@@ -62,22 +73,21 @@ void loop() {
     Serial.println(rate_yaw);
   }
 
-  if (bmp_signals()) {
+  if (bmp_signals() && do_print) {
     Serial.print("Temperature [*C]= ");
     Serial.print(temp_event.temperature);
     Serial.print(" Pressure [hPa]= ");
     Serial.println(pressure_event.pressure);
   }
   
-  // motor_signals();
+  do_print = false;
 
-  delay(500);
+  motor_signals();
 }
 
 void pmon_setup() {
   pinMode(PIN_IMON, INPUT);
   pinMode(PIN_VMON, INPUT);
-  pinMode(PIN_GREEN_LED, OUTPUT);
 }
 
 bool pmon_signals() {
@@ -87,17 +97,11 @@ bool pmon_signals() {
   const int LOWER_R1 = 503;
   const int LOWER_R4 = 1000;
   const int LOWER_R5 = 330;
-  const int RPT_TIME_MS = 1000;
-  static int hold = 0;
   static int _voltage, _current;
   _current = analogRead(PIN_IMON);
   _voltage = analogRead(PIN_VMON);
   current = _current * (VMAX / ADC_MAX) * BTS_RATIO / LOWER_R1;
   voltage = _voltage * (VMAX / ADC_MAX) * ((LOWER_R4 + LOWER_R5) / (LOWER_R5));
-  if (millis() - hold > RPT_TIME_MS) {
-    digitalWrite(PIN_GREEN_LED, digitalRead(PIN_GREEN_LED) == HIGH ? LOW : HIGH);
-    hold = millis();
-  }
   return true;
 }
 
@@ -175,33 +179,33 @@ void motor_setup() {
   m2_esc.attach(PIN_M2);
   m3_esc.attach(PIN_M3);
   m4_esc.attach(PIN_M4);
-  Serial.begin(115200);
   m1_esc.writeMicroseconds(0);
   m2_esc.writeMicroseconds(0);
   m3_esc.writeMicroseconds(0);
   m4_esc.writeMicroseconds(0);
-  delay(5000);
+  delay(3000);
 }
 
 void motor_signals() {
   const int AUTO_START_EVERY_MS = 15000;
   const int AUTO_STAGE_SIT_MS = 5;
   const int AUTO_MIN_VALUE = 1200;
-  const int AUTO_MAX_VALUE = 1500;
+  const int AUTO_MAX_VALUE = 1800;
   static int hold = millis();
   static int hold_print = millis();
   static int runs = 0;
   static int value = 0;
 
   if (runs >= MAX_RUNS) {
-    Serial.println("Not running");
     m1_esc.writeMicroseconds(0);
     m2_esc.writeMicroseconds(0);
     m3_esc.writeMicroseconds(0);
     m4_esc.writeMicroseconds(0);
-    delay(1000);
+    digitalWrite(PIN_GREEN_LED, LOW);
     return;
   }
+
+  digitalWrite(PIN_GREEN_LED, HIGH);  // If this is on, the motors are running
 
   if ((millis() - hold) > AUTO_START_EVERY_MS) {
     for (value = AUTO_MIN_VALUE; value < AUTO_MAX_VALUE; value++) {
@@ -212,7 +216,6 @@ void motor_signals() {
       delay(AUTO_STAGE_SIT_MS);
     }
     for (value = AUTO_MAX_VALUE; value > AUTO_MIN_VALUE; value--) {
-      Serial.println(value);
       m1_esc.writeMicroseconds(value);
       m2_esc.writeMicroseconds(value);
       m3_esc.writeMicroseconds(value);
