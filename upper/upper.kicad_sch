@@ -3621,7 +3621,7 @@
 		)
 		(uuid "f333d6e0-de17-4c6a-be7b-4522f2fcf76a")
 	)
-	(text "V1 issues:\n* R1 is 330 0805 which we don't have. Using 470\n* BMP1 mounting hole placement is wrong"
+	(text "V1 issues:\n* R1 is 330 0805 which we don't have. Using 470\n* BMP1 mounting hole placement is wrong\n* Consider ground planes\n* Battery connector placement is a bit awkward. Not easy to connect battery"
 		(exclude_from_sim no)
 		(at 83.7795 26.6053 0)
 		(effects

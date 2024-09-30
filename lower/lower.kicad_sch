@@ -2857,9 +2857,9 @@
 		)
 		(uuid "f74d105f-ab2e-46ad-8f79-9162a2355e32")
 	)
-	(text "V1 Issues:\n* BTS footprint was wrong\n* ~~JP1 trace should be more isolated~~\n* R1 trace is either small or my \"0603\"s are not actually 0603\n* R4=1k, R5=330. Should make these bigger to reduce always-current\n* D1 used 3v6 zdiode. When measured by multi it is 2v8. The 2v7 measured 2v2\n* D1 fp too small\n* TP1/2 fp just big enough\n* ESC A/B/C holes are too small. More separation needed. ESC power wires good\n* Standoffs are M3 25mm. Not 20mm due to battery strap\n* M3/4 R/B holes should be inverted"
+	(text "V1 Issues:\n* BTS footprint was wrong\n* ~~JP1 trace should be more isolated~~\n* R1 trace is either small or my \"0603\"s are not actually 0603\n* R4=1k, R5=330. Should make these bigger to reduce always-current\n* D1 used 3v6 zdiode. When measured by multi it is 2v8. The 2v7 measured 2v2\n* D1 fp too small\n* TP1/2 fp just big enough\n* ESC A/B/C holes are too small. More separation needed. ESC power wires good\n* Standoffs are M3 25mm. Not 20mm due to battery strap\n* M3/4 R/B holes should be inverted\n* Sense wires are too close to M1. In general, wires should be front/back, not on sides to avoid motor collision"
 		(exclude_from_sim no)
-		(at 83.82 23.876 0)
+		(at 89.662 -10.668 0)
 		(effects
 			(font
 				(size 1.27 1.27)
