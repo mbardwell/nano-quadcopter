@@ -27,7 +27,9 @@ const String html_3 = "<form id='F2' action='MOTOR OFF'><input type='submit' val
 const String html_4 = "<form id='F3' action='MOTOR VALUE'><input type='number' name='motor_value' required style='padding: 20px; font-size: 24px; margin: 10px; width: 100%; max-width: 300px;'></form>";
 const String html_5 = "<input type='submit' value='Set Motor Value' style='padding: 20px 40px; font-size: 24px; margin: 10px; cursor: pointer; background-color: #2196F3; color: white; border: none; border-radius: 5px;'></form></div></body></html>";
 const String html_6 = "</div></body></html>";
-const String html_emergency = "<!DOCTYPE html><html><head><title>Emergency State</title></head><body><div id='main'><h1>Emergency State</h1>";
+const String html_emergency_1 = "<!DOCTYPE html><html><head><title>Emergency State</title></head><body><div id='main'><h1>Emergency State</h1>";
+const String html_emergency_2 = "<form id='F1' action='RESET'><input type='submit' value='RESET' style='padding: 120px 140px; font-size: 124px; margin: 110px; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 15px;'></form><br>";
+
 
 Servo m1_esc, m2_esc, m3_esc, m4_esc;
 Adafruit_BMP280 bmp;
@@ -38,9 +40,10 @@ float rate_roll, rate_pitch, rate_yaw;
 sensors_event_t temp_event, pressure_event;
 WiFiServer server(WIFI_PORT);
 String client_request;
-bool emergency_off = false;
+bool emergency = false;
 bool motors_on = false;
 int motor_value = 1500;
+int last_contact = 0;
 
 bool mpu_signals();
 void mpu_setup();
@@ -74,6 +77,7 @@ void setup() {
   motor_setup();
 
   pinMode(PIN_GREEN_LED, OUTPUT);
+  pinMode(PIN_LED, OUTPUT);
 }
 
 void loop() {
@@ -81,12 +85,14 @@ void loop() {
   static int print_hold = 0;
   static bool do_print = false;
 
-  if (emergency_off) {
+  if (emergency) {
     motor_off();
     wifi_state_emergency();
-    digitalWrite(PIN_GREEN_LED, LOW);
+    digitalWrite(PIN_LED, LOW);
     return;
   }
+  else
+    digitalWrite(PIN_LED, HIGH);
 
   if ((millis() - print_hold) > PRINT_PERIOD_MS) {
     do_print = true;
@@ -236,9 +242,9 @@ void motor_signals() {
   if (motors_on) {
     digitalWrite(PIN_GREEN_LED, HIGH);
     m1_esc.writeMicroseconds(motor_value);
-    m4_esc.writeMicroseconds(motor_value);
+    // m2_esc.writeMicroseconds(motor_value);
     m3_esc.writeMicroseconds(motor_value);
-    m2_esc.writeMicroseconds(motor_value);
+    // m4_esc.writeMicroseconds(motor_value);
   }
   else {
     digitalWrite(PIN_GREEN_LED, LOW);
@@ -259,10 +265,8 @@ void wifi_setup() {
 }
 
 bool wifi_signals() {
-  static int last_contact = 0;
-
   if ((millis() - last_contact) > EMERGENCY_KILL_MS) {
-    emergency_off = true;
+    emergency = true;
     Serial.println("WARNING: Emergency off activated");
   }
 
@@ -305,9 +309,23 @@ bool wifi_signals() {
 
 void wifi_state_emergency() {
   WiFiClient client = server.available();
+
   if (!client)
     return;
+
   client_request = client.readStringUntil('\n');
+  if (client_request.indexOf("RESET") > 0) {
+    Serial.println("Exiting emergency state");
+    emergency = false;
+    return;
+  }
+  else if (client_request.indexOf("favicon") > 0) {}
+  else
+    Serial.printf("Failed to parse request %s", client_request);
+
   client.print(header);
-  client.print(html_emergency);
+  client.print(html_emergency_1);
+  client.print(html_emergency_2);
+
+  last_contact = millis();
 }
