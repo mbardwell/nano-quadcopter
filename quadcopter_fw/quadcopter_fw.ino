@@ -37,7 +37,8 @@ Adafruit_BMP280 bmp;
 Adafruit_Sensor *bmp_temp = bmp.getTemperatureSensor();
 Adafruit_Sensor *bmp_pressure = bmp.getPressureSensor();
 float current, voltage;
-float rate_roll, rate_pitch, rate_yaw;
+float rate_roll, rate_pitch, rate_yaw = 0.0;
+float rate_roll_cal, rate_pitch_cal, rate_yaw_cal = 0.0;
 sensors_event_t temp_event, pressure_event;
 WiFiServer server(WIFI_PORT);
 String client_request;
@@ -158,6 +159,21 @@ void mpu_setup() {
   Wire.write(0x00);
   Wire.endTransmission();
   delay(250);
+
+  const unsigned N = 2000;
+  float r, p, y = 0.0;
+  for (unsigned i = 0; i < N; ++i) {
+    if (!mpu_signals())
+        continue;
+    r += rate_roll;
+    p += rate_pitch;
+    y += rate_yaw;
+    delay(1);
+  }
+  rate_roll_cal = r / static_cast<float>(N);
+  rate_pitch_cal = p / static_cast<float>(N);
+  rate_yaw_cal = y / static_cast<float>(N);
+  Serial.printf("IMU Calibration. Roll: %.2f Pitch: %.2f Yaw: %.2f\n", rate_roll_cal, rate_pitch_cal, rate_yaw_cal);
 }
 
 bool mpu_signals() {
@@ -182,9 +198,9 @@ bool mpu_signals() {
     GyroY = Wire.read() << 8 | Wire.read();
     GyroZ = Wire.read() << 8 | Wire.read();
 
-    rate_roll = static_cast<float>(GyroX) / DEG_TO_LSB;
-    rate_pitch = static_cast<float>(GyroY) / DEG_TO_LSB;
-    rate_yaw = static_cast<float>(GyroZ) / DEG_TO_LSB;
+    rate_roll = (static_cast<float>(GyroX) / DEG_TO_LSB) - rate_roll_cal;
+    rate_pitch = (static_cast<float>(GyroY) / DEG_TO_LSB) - rate_pitch_cal;
+    rate_yaw = (static_cast<float>(GyroZ) / DEG_TO_LSB) - rate_yaw_cal;
 
     return true;
   }
