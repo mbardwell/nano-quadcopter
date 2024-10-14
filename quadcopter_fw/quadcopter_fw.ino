@@ -90,10 +90,11 @@ void loop() {
     motor_off();
     wifi_state_emergency();
     digitalWrite(PIN_LED, LOW);
-    return;
   }
-  else
+  else {
+    motor_signals();
     digitalWrite(PIN_LED, HIGH);
+  }
 
   if ((millis() - print_hold) > PRINT_PERIOD_MS) {
     do_print = true;
@@ -129,8 +130,6 @@ void loop() {
   }
 
   do_print = false;
-
-  motor_signals();
 }
 
 void pmon_setup() {
@@ -268,7 +267,6 @@ void wifi_setup() {
 bool wifi_signals() {
   if ((millis() - last_contact) > EMERGENCY_KILL_MS) {
     emergency = true;
-    Serial.println("WARNING: Emergency off activated");
   }
 
   WiFiClient client = server.accept();
