@@ -21,12 +21,13 @@ constexpr unsigned EMERGENCY_KILL_MS = 30000;
 constexpr unsigned MOTOR_VALUE_MAX = 2000; // TBD
 constexpr unsigned MOTOR_VALUE_MIN = 1000; // TBD
 const String header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
-const String html_1 = "<!DOCTYPE html><html><head><title>Quadcopter Control</title></head><body><div id='main'><h1>Quadcopter Control</h1>";
-const String html_2 = "<form id='F1' action='MOTOR ON'><input type='submit' value='MOTOR ON' style='padding: 120px 140px; font-size: 124px; margin: 110px; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 15px;'></form><br>";
-const String html_3 = "<form id='F2' action='MOTOR OFF'><input type='submit' value='MOTOR OFF' style='padding: 120px 140px; font-size: 124px; margin: 110px; cursor: pointer; background-color: #f44336; color: white; border: none; border-radius: 15px;'></form><br>";
-const String html_4 = "<form id='F3' action='MOTOR VALUE'><input type='number' name='motor_value' required style='padding: 20px; font-size: 24px; margin: 10px; width: 100%; max-width: 300px;'></form>";
-const String html_5 = "<input type='submit' value='Set Motor Value' style='padding: 20px 40px; font-size: 24px; margin: 10px; cursor: pointer; background-color: #2196F3; color: white; border: none; border-radius: 5px;'></form></div></body></html>";
-const String html_6 = "</div></body></html>";
+const String html_hd = "<!DOCTYPE html><html><head><title>Quadcopter Control</title></head><body><div id='main'><h1>Quadcopter Control</h1>";
+auto html_IV = [](float I, float V) -> String { return "<body><h2>Current and Voltage Information</h2><div class='info'><p><strong>Current:</strong> " + String(I) + " A</p><p><strong>Voltage:</strong> " + String(V) + " V</p></div></body></html>"; };
+const String html_motor_on = "<form id='F1' action='MOTOR ON'><input type='submit' value='MOTOR ON' style='padding: 120px 140px; font-size: 124px; margin: 110px; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 15px;'></form><br>";
+const String html_motor_off = "<form id='F2' action='MOTOR OFF'><input type='submit' value='MOTOR OFF' style='padding: 120px 140px; font-size: 124px; margin: 110px; cursor: pointer; background-color: #f44336; color: white; border: none; border-radius: 15px;'></form><br>";
+const String html_motor_val = "<form id='F3' action='MOTOR VALUE'><input type='number' name='motor_value' required style='padding: 20px; font-size: 24px; margin: 10px; width: 100%; max-width: 300px;'></form>";
+const String html_set_mval = "<input type='submit' value='Set Motor Value' style='padding: 20px 40px; font-size: 24px; margin: 10px; cursor: pointer; background-color: #2196F3; color: white; border: none; border-radius: 5px;'></form></div></body></html>";
+const String html_ft = "</div></body></html>";
 const String html_emergency_1 = "<!DOCTYPE html><html><head><title>Emergency State</title></head><body><div id='main'><h1>Emergency State</h1>";
 const String html_emergency_2 = "<form id='F1' action='RESET'><input type='submit' value='RESET' style='padding: 120px 140px; font-size: 124px; margin: 110px; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 15px;'></form><br>";
 
@@ -81,7 +82,7 @@ void setup() {
 }
 
 void loop() {
-  const int PRINT_PERIOD_MS = 50000;
+  const int PRINT_PERIOD_MS = 5000;
   static int print_hold = 0;
   static bool do_print = false;
 
@@ -242,9 +243,9 @@ void motor_signals() {
   if (motors_on) {
     digitalWrite(PIN_GREEN_LED, HIGH);
     m1_esc.writeMicroseconds(motor_value);
-    // m2_esc.writeMicroseconds(motor_value);
+    m2_esc.writeMicroseconds(motor_value);
     m3_esc.writeMicroseconds(motor_value);
-    // m4_esc.writeMicroseconds(motor_value);
+    m4_esc.writeMicroseconds(motor_value);
   }
   else {
     digitalWrite(PIN_GREEN_LED, LOW);
@@ -270,7 +271,7 @@ bool wifi_signals() {
     Serial.println("WARNING: Emergency off activated");
   }
 
-  WiFiClient client = server.available();
+  WiFiClient client = server.accept();
   if (!client)
     return false;
 
@@ -295,12 +296,13 @@ bool wifi_signals() {
     Serial.printf("Failed to parse request %s", client_request);
 
   client.print(header);
-  client.print(html_1);
-  client.print(html_2);
-  client.print(html_3);
-  client.print(html_4);
-  client.print(html_5);
-  client.print(html_6);
+  client.print(html_hd);
+  client.print(html_IV(current, voltage));
+  client.print(html_motor_on);
+  client.print(html_motor_off);
+  client.print(html_motor_val);
+  client.print(html_set_mval);
+  client.print(html_ft);
   client.flush();
 
   last_contact = millis();
@@ -308,7 +310,7 @@ bool wifi_signals() {
 }
 
 void wifi_state_emergency() {
-  WiFiClient client = server.available();
+  WiFiClient client = server.accept();
 
   if (!client)
     return;
