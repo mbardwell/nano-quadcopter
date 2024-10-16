@@ -18,8 +18,11 @@ constexpr byte I2C_ADDRESS_MPU = 0x68;
 constexpr char WIFI_SSID[] = "FBI-surveillance-van";
 constexpr unsigned WIFI_PORT = 4242;
 constexpr unsigned EMERGENCY_KILL_MS = 30000;
-constexpr unsigned MOTOR_VALUE_MAX = 2000; // TBD
-constexpr unsigned MOTOR_VALUE_MIN = 1000; // TBD
+constexpr unsigned THROTTLE_MAX = 1800;
+constexpr unsigned THROTTLE_IDLE = 1180;
+constexpr unsigned THROTTLE_MIN = 1000;
+constexpr unsigned MOTOR_MAX = 1999; // Translates to 100% motor power. Max is theoretically 2000, but this works
+constexpr unsigned MOTOR_MIN = THROTTLE_IDLE; // Translates to 0% motor power. Min is theoretically 1000, but this works
 const String header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
 const String html_hd = "<!DOCTYPE html><html><head><title>Quadcopter Control</title></head><body><div id='main'><h1>Quadcopter Control</h1>";
 auto html_IV = [](float I, float V) -> String { return "<body><h2>Current and Voltage Information</h2><div class='info'><p><strong>Current:</strong> " + String(I) + " A</p><p><strong>Voltage:</strong> " + String(V) + " V</p></div></body></html>"; };
@@ -37,28 +40,64 @@ Adafruit_BMP280 bmp;
 Adafruit_Sensor *bmp_temp = bmp.getTemperatureSensor();
 Adafruit_Sensor *bmp_pressure = bmp.getPressureSensor();
 float current, voltage;
-float rate_roll, rate_pitch, rate_yaw = 0.0;
-float rate_roll_cal, rate_pitch_cal, rate_yaw_cal = 0.0;
 sensors_event_t temp_event, pressure_event;
 WiFiServer server(WIFI_PORT);
 String client_request;
 bool emergency = false;
 bool motors_on = false;
 int motor_value = 1500;
+struct Motor {
+  unsigned one = MOTOR_MIN;
+  unsigned two = MOTOR_MIN;
+  unsigned three = MOTOR_MIN;
+  unsigned four = MOTOR_MIN;
+} kMotor;
 int last_contact = 0;
+struct Pid {
+  float p = 0.0;
+  float i = 0.0;
+  float d = 0.0;
+};
+template<typename T>
+struct Rpy {
+  T roll = T();
+  T pitch = T();
+  T yaw = T();
+};
+Rpy<float> rate, cal, desired, error, input, error_prev, i_term_prev;
+constexpr Rpy<Pid> kPid = {
+  {0.6, 3.5, 0.03},
+  {0.6, 3.5, 0.03},
+  {2, 12, 0},
+};
+float rate_roll, rate_pitch, rate_yaw = 0.0;
+float rate_roll_cal, rate_pitch_cal, rate_yaw_cal = 0.0;
+struct PidOut {
+  float value = 0.0;
+  float error = 0.0;
+  float i_term = 0.0;
+};
+struct RxOut {
+  Rpy<float> rpy;
+  float throttle = 0.0;
+} rx_out;
 
 bool mpu_signals();
 void mpu_setup();
 bool bmp_signals();
 void bmp_setup();
-void motor_signals();
-void motor_setup();
-void motor_off();
 bool pmon_signals();
 void pmon_setup();
 bool wifi_signals();
 void wifi_setup();
 void wifi_state_emergency();
+RxOut read_receiver();
+void motor_signals();
+void motor_setup();
+void motor_off();
+Rpy<float> angular_rate_of_input(Rpy<float> input);
+PidOut pid_equation(float err, Pid pid, float prev_err, float prev_I);
+void pid_reset();
 
 void setup() {
   int MAX_HOLD_MS = 2000;
@@ -128,6 +167,34 @@ void loop() {
   if (wifi_signals()) {  //&& do_print) {
     Serial.print("Client request: ");
     Serial.println(client_request);
+    rx_out = read_receiver();
+    desired = angular_rate_of_input(rx_out.rpy);
+    error.roll = desired.roll - rate.roll;
+    error.pitch = desired.pitch - rate.pitch;
+    error.yaw = desired.yaw - rate.yaw;
+    PidOut input_roll = pid_equation(error.roll, kPid.roll, error_prev.roll, i_term_prev.roll);
+    PidOut input_pitch = pid_equation(error.pitch, kPid.pitch, error_prev.pitch, i_term_prev.pitch);
+    PidOut input_yaw = pid_equation(error.yaw, kPid.yaw, error_prev.yaw, i_term_prev.yaw);
+    const float MAGIC_MOTOR = 1.024;
+    kMotor.one = MAGIC_MOTOR * (rx_out.throttle - input_roll.value - input_pitch.value - input_yaw.value);
+    kMotor.two = MAGIC_MOTOR * (rx_out.throttle - input_roll.value + input_pitch.value + input_yaw.value);
+    kMotor.three = MAGIC_MOTOR * (rx_out.throttle + input_roll.value + input_pitch.value - input_yaw.value);
+    kMotor.four = MAGIC_MOTOR * (rx_out.throttle + input_roll.value - input_pitch.value + input_yaw.value);
+    kMotor.one = kMotor.one >= MOTOR_MAX ? MOTOR_MAX : kMotor.one;
+    kMotor.two = kMotor.two >= MOTOR_MAX ? MOTOR_MAX : kMotor.two;
+    kMotor.three = kMotor.three >= MOTOR_MAX ? MOTOR_MAX : kMotor.three;
+    kMotor.four = kMotor.four >= MOTOR_MAX ? MOTOR_MAX : kMotor.four;
+    kMotor.one = kMotor.one <= THROTTLE_IDLE ? THROTTLE_IDLE : kMotor.one;
+    kMotor.two = kMotor.two <= THROTTLE_IDLE ? THROTTLE_IDLE : kMotor.two;
+    kMotor.three = kMotor.three <= THROTTLE_IDLE ? THROTTLE_IDLE : kMotor.three;
+    kMotor.four = kMotor.four <= THROTTLE_IDLE ? THROTTLE_IDLE : kMotor.four;
+    if (rx_out.throttle < THROTTLE_MIN + 50) {
+      kMotor.one = THROTTLE_MIN;
+      kMotor.two = THROTTLE_MIN;
+      kMotor.three = THROTTLE_MIN;
+      kMotor.four = THROTTLE_MIN;
+    }
+
   }
 
   do_print = false;
@@ -253,7 +320,7 @@ void motor_setup() {
 }
 
 void motor_signals() {
-  motor_value = min(max(motor_value, MOTOR_VALUE_MIN), MOTOR_VALUE_MAX);
+  motor_value = min(max(motor_value, MOTOR_MIN), MOTOR_MAX);
 
   if (motors_on) {
     digitalWrite(PIN_GREEN_LED, HIGH);
@@ -266,6 +333,44 @@ void motor_signals() {
     digitalWrite(PIN_GREEN_LED, LOW);
     motor_off();
   }
+}
+
+Rpy<float> angular_rate_of_input(Rpy<float> input) {
+  const float SLOPE = 0.15;
+  const unsigned DEFAULT_INPUT = 1500;
+  Rpy<float> desired;
+  desired.pitch = SLOPE * (input.pitch - DEFAULT_INPUT);
+  desired.roll = SLOPE * (input.roll - DEFAULT_INPUT);
+  desired.yaw = SLOPE * (input.yaw - DEFAULT_INPUT);
+  return desired;
+}
+
+PidOut pid_equation(float err, Pid pid, float prev_err, float prev_i) {
+  const int MAGIC_CAP = 400;
+  const float MAGIC_TERM = 0.004;
+  const unsigned MAGIC_I_DIV = 2;
+  float p_err = pid.p * err;
+  float i_err = prev_i + pid.i * (err + prev_err) * MAGIC_TERM / MAGIC_I_DIV;
+  if (i_err > MAGIC_CAP)
+    i_err = MAGIC_CAP;
+  else if (i_err < -MAGIC_CAP)
+    i_err = -MAGIC_CAP;
+  float d_err = pid.d * (err - prev_err ) / MAGIC_TERM;
+  float pid_output = p_err + i_err + d_err;
+  if (pid_output > MAGIC_CAP)
+    pid_output = MAGIC_CAP;
+  else if (pid_output < -MAGIC_CAP)
+    pid_output = -MAGIC_CAP;
+  return {pid_output, err, -pid.i};
+}
+
+void pid_reset() {
+  error_prev.roll = 0.0;
+  error_prev.pitch = 0.0;
+  error_prev.yaw = 0.0;
+  i_term_prev.roll = 0.0;
+  i_term_prev.pitch = 0.0;
+  i_term_prev.yaw = 0.0;
 }
 
 void wifi_setup() {
@@ -344,4 +449,8 @@ void wifi_state_emergency() {
   client.print(html_emergency_2);
 
   last_contact = millis();
+}
+
+RxOut read_receiver() {
+  return {{1500.0, 1500.0, 1500.0}, 1500.0};
 }
