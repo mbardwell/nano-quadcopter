@@ -13,7 +13,8 @@ constexpr pin_size_t PIN_M3 = 4;
 constexpr pin_size_t PIN_M4 = 6;
 constexpr pin_size_t PIN_I2C_SDA = 8;
 constexpr pin_size_t PIN_I2C_SCL = 9;
-constexpr pin_size_t PIN_GREEN_LED = 22;
+constexpr pin_size_t PIN_LED_MOTOR = 22;
+constexpr pin_size_t PIN_LED_EMERGENCY = PIN_LED;
 constexpr pin_size_t PIN_IMON = A0;
 constexpr pin_size_t PIN_VMON = A1;
 constexpr byte I2C_ADDRESS_MPU = 0x68;
@@ -44,16 +45,13 @@ Adafruit_Sensor *bmp_pressure = bmp.getPressureSensor();
 float current, voltage;
 sensors_event_t temp_event, pressure_event;
 WiFiServer server(WIFI_PORT);
-String client_request;
 bool emergency = false;
-bool motors_on = false;
-int motor_value = 1500;
 struct Motor {
   unsigned one = MOTOR_MIN;
   unsigned two = MOTOR_MIN;
   unsigned three = MOTOR_MIN;
   unsigned four = MOTOR_MIN;
-} kMotor;
+};
 int last_contact = 0;
 struct Pid {
   float p = 0.0;
@@ -83,6 +81,11 @@ constexpr Rpy<Pid> kPidCoeffs = {
   {0.6, 3.5, 0.03},
   {2, 12, 0},
 };
+struct UserInput {
+  Rpy<float> rpy;
+  float throttle;
+  bool on;
+};
 
 void imu_setup();
 bool imu_calibration(Rpy<float> &);
@@ -92,14 +95,15 @@ bool pressure_signals();
 void pmon_setup();
 bool pmon_signals();
 void wifi_setup();
-bool wifi_signals();
+bool wifi_signals(UserInput &);
 void wifi_state_emergency();
 void motor_setup();
-void motor_signals();
+void motor_signals(const Motor &);
 void motor_off();
-Rpy<float> angular_rate_of_input(Rpy<float>);
+Rpy<float> angular_rate_of_input(const Rpy<float> &);
 float pid_equation(const Pid, float, float &, float &);
-void pid_reset();
+void pid_reset(Rpy<float> &, Rpy<float> &);
+Motor calculate_motor_signals(float, const Rpy<float> &);
 
 void setup() {
   int MAX_HOLD_MS = 2000;
@@ -119,28 +123,28 @@ void setup() {
   pressure_setup();
   motor_setup();
 
-  pinMode(PIN_GREEN_LED, OUTPUT);
-  pinMode(PIN_LED, OUTPUT);
+  pinMode(PIN_LED_MOTOR, OUTPUT);
+  pinMode(PIN_LED_EMERGENCY, OUTPUT);
 }
 
 void loop() {
   const int PRINT_PERIOD_MS = 5000;
   static int print_hold = 0;
   static bool do_print = false;
-  Rpy<float> imu_cal, imu_rate, pid_mem_err, pid_mem_iterm;
-
-  if (imu_cal == Rpy<float>()) {
-    static_cast<void>(imu_calibration(imu_cal));
-  }
+  static Rpy<float> imu_cal, imu_rate, pid_mem_err, pid_mem_iterm;
+  static Motor m_values;
+  UserInput user_input;
 
   if (emergency) {
     motor_off();
     wifi_state_emergency();
-    digitalWrite(PIN_LED, LOW);
+    digitalWrite(PIN_LED_EMERGENCY, HIGH);
+    return;
   }
-  else {
-    motor_signals();
-    digitalWrite(PIN_LED, HIGH);
+  digitalWrite(PIN_LED_EMERGENCY, LOW);
+
+  if (imu_cal == Rpy<float>()) {
+    static_cast<void>(imu_calibration(imu_cal));
   }
 
   if ((millis() - print_hold) > PRINT_PERIOD_MS) {
@@ -171,36 +175,19 @@ void loop() {
     Serial.println(pressure_event.pressure);
   }
 
-  if (wifi_signals()) {
-    Serial.print("Getting user input: ");
-    Serial.println(client_request);
-    Rpy<float> user_input_rpy;  // TODO: Get from client_request
-    float user_input_throttle = 1500.0;  // TODO: Get from client_request
-
-    Rpy<float> desired = angular_rate_of_input(user_input_rpy);
-    Rpy<float> error = desired - imu_rate;
-    Rpy<float> pid_out;
-    pid_out.roll = pid_equation(kPidCoeffs.roll, error.roll, pid_mem_err.roll, pid_mem_iterm.roll);
-    pid_out.pitch = pid_equation(kPidCoeffs.pitch, error.pitch, pid_mem_err.pitch, pid_mem_iterm.pitch);
-    pid_out.yaw = pid_equation(kPidCoeffs.yaw, error.yaw, pid_mem_err.yaw, pid_mem_iterm.yaw);
-    const float MAGIC_MOTOR = 1.024;
-    kMotor.one = MAGIC_MOTOR * (user_input_throttle - pid_out.roll - pid_out.pitch - pid_out.yaw);
-    kMotor.two = MAGIC_MOTOR * (user_input_throttle - pid_out.roll + pid_out.pitch + pid_out.yaw);
-    kMotor.three = MAGIC_MOTOR * (user_input_throttle + pid_out.roll + pid_out.pitch - pid_out.yaw);
-    kMotor.four = MAGIC_MOTOR * (user_input_throttle + pid_out.roll - pid_out.pitch + pid_out.yaw);
-    kMotor.one = kMotor.one >= MOTOR_MAX ? MOTOR_MAX : kMotor.one;
-    kMotor.two = kMotor.two >= MOTOR_MAX ? MOTOR_MAX : kMotor.two;
-    kMotor.three = kMotor.three >= MOTOR_MAX ? MOTOR_MAX : kMotor.three;
-    kMotor.four = kMotor.four >= MOTOR_MAX ? MOTOR_MAX : kMotor.four;
-    kMotor.one = kMotor.one <= THROTTLE_IDLE ? THROTTLE_IDLE : kMotor.one;
-    kMotor.two = kMotor.two <= THROTTLE_IDLE ? THROTTLE_IDLE : kMotor.two;
-    kMotor.three = kMotor.three <= THROTTLE_IDLE ? THROTTLE_IDLE : kMotor.three;
-    kMotor.four = kMotor.four <= THROTTLE_IDLE ? THROTTLE_IDLE : kMotor.four;
-    if (user_input_throttle < THROTTLE_MIN + 50) {
-      kMotor.one = THROTTLE_MIN;
-      kMotor.two = THROTTLE_MIN;
-      kMotor.three = THROTTLE_MIN;
-      kMotor.four = THROTTLE_MIN;
+  if (wifi_signals(user_input)) {
+    if (user_input.throttle < THROTTLE_MIN + 50) {
+      pid_reset(pid_mem_err, pid_mem_iterm);
+      motor_off();
+    }
+    else {
+      Rpy<float> desired = angular_rate_of_input(user_input.rpy);
+      Rpy<float> error = desired - imu_rate;
+      Rpy<float> pid_out;
+      pid_out.roll = pid_equation(kPidCoeffs.roll, error.roll, pid_mem_err.roll, pid_mem_iterm.roll);
+      pid_out.pitch = pid_equation(kPidCoeffs.pitch, error.pitch, pid_mem_err.pitch, pid_mem_iterm.pitch);
+      pid_out.yaw = pid_equation(kPidCoeffs.yaw, error.yaw, pid_mem_err.yaw, pid_mem_iterm.yaw);
+      m_values = calculate_motor_signals(user_input.throttle, pid_out);
     }
   }
 
@@ -313,13 +300,6 @@ bool pressure_signals() {
   return false;
 }
 
-void motor_off() {
-  m1_esc.writeMicroseconds(0);
-  m2_esc.writeMicroseconds(0);
-  m3_esc.writeMicroseconds(0);
-  m4_esc.writeMicroseconds(0);
-}
-
 void motor_setup() {
   m1_esc.attach(PIN_M1);
   m2_esc.attach(PIN_M2);
@@ -329,20 +309,21 @@ void motor_setup() {
   delay(3000);
 }
 
-void motor_signals() {
-  motor_value = min(max(motor_value, MOTOR_MIN), MOTOR_MAX);
+void motor_signals(const Motor &value) {
+  m1_esc.writeMicroseconds(value.one);
+  m2_esc.writeMicroseconds(value.two);
+  m3_esc.writeMicroseconds(value.three);
+  m4_esc.writeMicroseconds(value.four);
+  digitalWrite(PIN_LED_MOTOR, HIGH);
+}
 
-  if (motors_on) {
-    digitalWrite(PIN_GREEN_LED, HIGH);
-    m1_esc.writeMicroseconds(motor_value);
-    m2_esc.writeMicroseconds(motor_value);
-    m3_esc.writeMicroseconds(motor_value);
-    m4_esc.writeMicroseconds(motor_value);
-  }
-  else {
-    digitalWrite(PIN_GREEN_LED, LOW);
-    motor_off();
-  }
+void motor_off() {
+  // TODO: Use MOTOR_MIN?
+  m1_esc.writeMicroseconds(0);
+  m2_esc.writeMicroseconds(0);
+  m3_esc.writeMicroseconds(0);
+  m4_esc.writeMicroseconds(0);
+  digitalWrite(PIN_LED_MOTOR, HIGH);
 }
 
 /**
@@ -352,7 +333,7 @@ void motor_signals() {
  * @param input The input from the user
  * @return Rpy<float> The angular rate of the input
  */
-Rpy<float> angular_rate_of_input(Rpy<float> input) {
+Rpy<float> angular_rate_of_input(const Rpy<float> &input) {
   auto calculate_desired = [](float input_value) -> float {
     const float SLOPE = 0.15;
     const unsigned DEFAULT_INPUT = 1500;
@@ -364,6 +345,33 @@ Rpy<float> angular_rate_of_input(Rpy<float> input) {
   desired.pitch = calculate_desired(input.pitch);
   desired.yaw = calculate_desired(input.yaw);
   return desired;
+}
+
+Motor calculate_motor_signals(float throttle, const Rpy<float> &pid_output) {
+  Motor m;
+  if (throttle < THROTTLE_MIN + 50) {
+    m.one = MOTOR_MIN;
+    m.two = MOTOR_MIN;
+    m.three = MOTOR_MIN;
+    m.four = MOTOR_MIN;
+    return m;
+  }
+
+  const float MAGIC_MOTOR = 1.024;
+  m.one = MAGIC_MOTOR * (throttle - pid_output.roll - pid_output.pitch - pid_output.yaw);
+  m.two = MAGIC_MOTOR * (throttle - pid_output.roll + pid_output.pitch + pid_output.yaw);
+  m.three = MAGIC_MOTOR * (throttle + pid_output.roll + pid_output.pitch - pid_output.yaw);
+  m.four = MAGIC_MOTOR * (throttle + pid_output.roll - pid_output.pitch + pid_output.yaw);
+
+  auto clamp_motor_values = [](unsigned &val) {
+    val = std::min(std::max(val, MOTOR_MIN), MOTOR_MAX);
+  };
+  clamp_motor_values(m.one);
+  clamp_motor_values(m.two);
+  clamp_motor_values(m.three);
+  clamp_motor_values(m.four);
+
+  return m;
 }
 
 float pid_equation(const Pid constants, float err, float &prev_err, float &prev_iterm) {
@@ -398,7 +406,9 @@ void wifi_setup() {
   server.begin();
 }
 
-bool wifi_signals() {
+bool wifi_signals(UserInput &user_input) {
+  String client_request;
+
   if ((millis() - last_contact) > EMERGENCY_KILL_MS) {
     emergency = true;
   }
@@ -410,22 +420,24 @@ bool wifi_signals() {
   client_request = client.readStringUntil('\n');
   if (client_request.indexOf("MOTOR%20ON") > 0) {
     Serial.println("Turning motors on");
-    motors_on = true;
+    user_input.on = true;
   }
   else if (client_request.indexOf("MOTOR%20OFF") > 0) {
     Serial.println("Turning motors off");
-    motors_on = false;
+    user_input.on = false;
   }
   else if (client_request.indexOf("MOTOR%20VALUE?motor_value=") > 0) {
     int start_index = client_request.indexOf('=') + 1;
     int end_index = client_request.indexOf(' ', start_index);
     String motor_value_s = client_request.substring(start_index, end_index);
-    motor_value = motor_value_s.toInt();
-    Serial.printf("Setting motor value to %d\n", motor_value);
+    user_input.throttle = motor_value_s.toFloat();
+    Serial.printf("Setting motor value to %d\n", user_input.throttle);
   }
   else if (client_request.indexOf("favicon") > 0) {}
   else
     Serial.printf("Failed to parse request %s", client_request);
+
+  user_input.rpy = Rpy<float>();  // TODO: Get from client_request
 
   client.print(header);
   client.print(html_hd);
@@ -442,6 +454,7 @@ bool wifi_signals() {
 }
 
 void wifi_state_emergency() {
+  String client_request;
   WiFiClient client = server.accept();
 
   if (!client)
