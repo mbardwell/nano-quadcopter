@@ -82,10 +82,10 @@ struct RxOut {
   float throttle = 0.0;
 } rx_out;
 
-bool mpu_signals();
-void mpu_setup();
-bool bmp_signals();
-void bmp_setup();
+bool imu_signals();
+void imu_setup();
+bool pressure_signals();
+void pressure_setup();
 bool pmon_signals();
 void pmon_setup();
 bool wifi_signals();
@@ -113,8 +113,8 @@ void setup() {
 
   wifi_setup();
   pmon_setup();
-  mpu_setup();
-  bmp_setup();
+  imu_setup();
+  pressure_setup();
   motor_setup();
 
   pinMode(PIN_GREEN_LED, OUTPUT);
@@ -148,7 +148,7 @@ void loop() {
     Serial.println(current);
   }
 
-  if (mpu_signals() && do_print) {
+  if (imu_signals() && do_print) {
     Serial.print("Roll rate [°/s]= ");
     Serial.print(rate_roll);
     Serial.print(" Pitch Rate [°/s]= ");
@@ -157,7 +157,7 @@ void loop() {
     Serial.println(rate_yaw);
   }
 
-  if (bmp_signals() && do_print) {
+  if (pressure_signals() && do_print) {
     Serial.print("Temperature [*C]= ");
     Serial.print(temp_event.temperature);
     Serial.print(" Pressure [hPa]= ");
@@ -220,7 +220,7 @@ bool pmon_signals() {
   return true;
 }
 
-void mpu_setup() {
+void imu_setup() {
   Wire.beginTransmission(I2C_ADDRESS_MPU);
   Wire.write(0x6B);
   Wire.write(0x00);
@@ -230,7 +230,7 @@ void mpu_setup() {
   const unsigned N = 2000;
   float r, p, y = 0.0;
   for (unsigned i = 0; i < N; ++i) {
-    if (!mpu_signals())
+    if (!imu_signals())
         continue;
     r += rate_roll;
     p += rate_pitch;
@@ -243,7 +243,7 @@ void mpu_setup() {
   Serial.printf("IMU Calibration. Roll: %.2f Pitch: %.2f Yaw: %.2f\n", rate_roll_cal, rate_pitch_cal, rate_yaw_cal);
 }
 
-bool mpu_signals() {
+bool imu_signals() {
   const float DEG_TO_LSB = 65.5;
   static int16_t GyroX = 0;
   static int16_t GyroY = 0;
@@ -274,7 +274,7 @@ bool mpu_signals() {
   return false;
 }
 
-void bmp_setup() {
+void pressure_setup() {
   unsigned status = bmp.begin();
   if (!status) {
     Serial.println(F("Could not find a valid BMP280 sensor, check wiring or "
@@ -296,7 +296,7 @@ void bmp_setup() {
   bmp_temp->printSensorDetails();
 }
 
-bool bmp_signals() {
+bool pressure_signals() {
   if (
     bmp_temp->getEvent(&temp_event) && bmp_pressure->getEvent(&pressure_event))
     return true;
