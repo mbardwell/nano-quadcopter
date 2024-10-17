@@ -1,4 +1,6 @@
 // 192.168.42.1:4242 to access
+// TODO: Handle anything static_cast<void>'d
+// TODO: Clear up any MAGIC numbers
 
 #include <Adafruit_BMP280.h>
 #include <Servo.h>
@@ -63,27 +65,28 @@ struct Rpy {
   T roll = T();
   T pitch = T();
   T yaw = T();
+
+  Rpy<T> operator+(const Rpy<T> &rhs) const {
+    return {roll + rhs.roll, pitch + rhs.pitch, yaw + rhs.yaw};
+  }
+
+  Rpy<T> operator-(const Rpy<T> &rhs) const {
+    return {roll - rhs.roll, pitch - rhs.pitch, yaw - rhs.yaw};
+  }
+
+  bool operator==(const Rpy<T> &rhs) const {
+    return roll == rhs.roll && pitch == rhs.pitch && yaw == rhs.yaw;
+  }
 };
-Rpy<float> rate, cal, desired, error, input, error_prev, i_term_prev;
-constexpr Rpy<Pid> kPid = {
+constexpr Rpy<Pid> kPidCoeffs = {
   {0.6, 3.5, 0.03},
   {0.6, 3.5, 0.03},
   {2, 12, 0},
 };
-float rate_roll, rate_pitch, rate_yaw = 0.0;
-float rate_roll_cal, rate_pitch_cal, rate_yaw_cal = 0.0;
-struct PidOut {
-  float value = 0.0;
-  float error = 0.0;
-  float i_term = 0.0;
-};
-struct RxOut {
-  Rpy<float> rpy;
-  float throttle = 0.0;
-} rx_out;
 
 void imu_setup();
-bool imu_signals();
+bool imu_calibration(Rpy<float> &);
+bool imu_signals(const Rpy<float> &, Rpy<float> &);
 void pressure_setup();
 bool pressure_signals();
 void pmon_setup();
@@ -91,12 +94,11 @@ bool pmon_signals();
 void wifi_setup();
 bool wifi_signals();
 void wifi_state_emergency();
-RxOut read_receiver();
 void motor_setup();
 void motor_signals();
 void motor_off();
-Rpy<float> angular_rate_of_input(Rpy<float> input);
-PidOut pid_equation(float err, Pid pid, float prev_err, float prev_I);
+Rpy<float> angular_rate_of_input(Rpy<float>);
+float pid_equation(const Pid, float, float &, float &);
 void pid_reset();
 
 void setup() {
@@ -125,6 +127,11 @@ void loop() {
   const int PRINT_PERIOD_MS = 5000;
   static int print_hold = 0;
   static bool do_print = false;
+  Rpy<float> imu_cal, imu_rate, pid_mem_err, pid_mem_iterm;
+
+  if (imu_cal == Rpy<float>()) {
+    static_cast<void>(imu_calibration(imu_cal));
+  }
 
   if (emergency) {
     motor_off();
@@ -148,13 +155,13 @@ void loop() {
     Serial.println(current);
   }
 
-  if (imu_signals() && do_print) {
+  if (imu_signals(imu_cal, imu_rate) && do_print) {
     Serial.print("Roll rate [°/s]= ");
-    Serial.print(rate_roll);
+    Serial.print(imu_rate.roll);
     Serial.print(" Pitch Rate [°/s]= ");
-    Serial.print(rate_pitch);
+    Serial.print(imu_rate.pitch);
     Serial.print(" Yaw Rate [°/s]= ");
-    Serial.println(rate_yaw);
+    Serial.println(imu_rate.yaw);
   }
 
   if (pressure_signals() && do_print) {
@@ -164,22 +171,23 @@ void loop() {
     Serial.println(pressure_event.pressure);
   }
 
-  if (wifi_signals()) {  //&& do_print) {
-    Serial.print("Client request: ");
+  if (wifi_signals()) {
+    Serial.print("Getting user input: ");
     Serial.println(client_request);
-    rx_out = read_receiver();
-    desired = angular_rate_of_input(rx_out.rpy);
-    error.roll = desired.roll - rate.roll;
-    error.pitch = desired.pitch - rate.pitch;
-    error.yaw = desired.yaw - rate.yaw;
-    PidOut input_roll = pid_equation(error.roll, kPid.roll, error_prev.roll, i_term_prev.roll);
-    PidOut input_pitch = pid_equation(error.pitch, kPid.pitch, error_prev.pitch, i_term_prev.pitch);
-    PidOut input_yaw = pid_equation(error.yaw, kPid.yaw, error_prev.yaw, i_term_prev.yaw);
+    Rpy<float> user_input_rpy;  // TODO: Get from client_request
+    float user_input_throttle = 1500.0;  // TODO: Get from client_request
+
+    Rpy<float> desired = angular_rate_of_input(user_input_rpy);
+    Rpy<float> error = desired - imu_rate;
+    Rpy<float> pid_out;
+    pid_out.roll = pid_equation(kPidCoeffs.roll, error.roll, pid_mem_err.roll, pid_mem_iterm.roll);
+    pid_out.pitch = pid_equation(kPidCoeffs.pitch, error.pitch, pid_mem_err.pitch, pid_mem_iterm.pitch);
+    pid_out.yaw = pid_equation(kPidCoeffs.yaw, error.yaw, pid_mem_err.yaw, pid_mem_iterm.yaw);
     const float MAGIC_MOTOR = 1.024;
-    kMotor.one = MAGIC_MOTOR * (rx_out.throttle - input_roll.value - input_pitch.value - input_yaw.value);
-    kMotor.two = MAGIC_MOTOR * (rx_out.throttle - input_roll.value + input_pitch.value + input_yaw.value);
-    kMotor.three = MAGIC_MOTOR * (rx_out.throttle + input_roll.value + input_pitch.value - input_yaw.value);
-    kMotor.four = MAGIC_MOTOR * (rx_out.throttle + input_roll.value - input_pitch.value + input_yaw.value);
+    kMotor.one = MAGIC_MOTOR * (user_input_throttle - pid_out.roll - pid_out.pitch - pid_out.yaw);
+    kMotor.two = MAGIC_MOTOR * (user_input_throttle - pid_out.roll + pid_out.pitch + pid_out.yaw);
+    kMotor.three = MAGIC_MOTOR * (user_input_throttle + pid_out.roll + pid_out.pitch - pid_out.yaw);
+    kMotor.four = MAGIC_MOTOR * (user_input_throttle + pid_out.roll - pid_out.pitch + pid_out.yaw);
     kMotor.one = kMotor.one >= MOTOR_MAX ? MOTOR_MAX : kMotor.one;
     kMotor.two = kMotor.two >= MOTOR_MAX ? MOTOR_MAX : kMotor.two;
     kMotor.three = kMotor.three >= MOTOR_MAX ? MOTOR_MAX : kMotor.three;
@@ -188,13 +196,12 @@ void loop() {
     kMotor.two = kMotor.two <= THROTTLE_IDLE ? THROTTLE_IDLE : kMotor.two;
     kMotor.three = kMotor.three <= THROTTLE_IDLE ? THROTTLE_IDLE : kMotor.three;
     kMotor.four = kMotor.four <= THROTTLE_IDLE ? THROTTLE_IDLE : kMotor.four;
-    if (rx_out.throttle < THROTTLE_MIN + 50) {
+    if (user_input_throttle < THROTTLE_MIN + 50) {
       kMotor.one = THROTTLE_MIN;
       kMotor.two = THROTTLE_MIN;
       kMotor.three = THROTTLE_MIN;
       kMotor.four = THROTTLE_MIN;
     }
-
   }
 
   do_print = false;
@@ -226,28 +233,33 @@ void imu_setup() {
   Wire.write(0x00);
   Wire.endTransmission();
   delay(250);
-
-  const unsigned N = 2000;
-  float r, p, y = 0.0;
-  for (unsigned i = 0; i < N; ++i) {
-    if (!imu_signals())
-        continue;
-    r += rate_roll;
-    p += rate_pitch;
-    y += rate_yaw;
-    delay(1);
-  }
-  rate_roll_cal = r / static_cast<float>(N);
-  rate_pitch_cal = p / static_cast<float>(N);
-  rate_yaw_cal = y / static_cast<float>(N);
-  Serial.printf("IMU Calibration. Roll: %.2f Pitch: %.2f Yaw: %.2f\n", rate_roll_cal, rate_pitch_cal, rate_yaw_cal);
 }
 
-bool imu_signals() {
+bool imu_calibration(Rpy<float> &cal) {
+  const unsigned N = 2000;
+  unsigned n_fail = 0;
+  Rpy<float> r_sum, r;
+  for (unsigned i = 0; i < N; ++i) {
+    if (!imu_signals(Rpy<float>(), r)) {
+      if (++n_fail > 10)
+        return false;
+      continue;
+    }
+    r_sum = r + r_sum;
+    delay(1);
+  }
+  cal.roll = r.roll / static_cast<float>(N);
+  cal.pitch = r.pitch / static_cast<float>(N);
+  cal.yaw = r.yaw / static_cast<float>(N);
+  Serial.printf("IMU Calibration. Roll: %.2f Pitch: %.2f Yaw: %.2f\n", cal.roll, cal.pitch, cal.yaw);
+  return true;
+}
+
+bool imu_signals(const Rpy<float> &cal, Rpy<float> &gyro) {
   const float DEG_TO_LSB = 65.5;
-  static int16_t GyroX = 0;
-  static int16_t GyroY = 0;
-  static int16_t GyroZ = 0;
+  int16_t raw_x = 0;
+  int16_t raw_y = 0;
+  int16_t raw_z = 0;
   Wire.beginTransmission(I2C_ADDRESS_MPU);
   Wire.write(0x1A);
   Wire.write(0x05);
@@ -261,14 +273,12 @@ bool imu_signals() {
   Wire.endTransmission();
   Wire.requestFrom(I2C_ADDRESS_MPU, 6);
   if (Wire.available() == 6) {
-    GyroX = Wire.read() << 8 | Wire.read();
-    GyroY = Wire.read() << 8 | Wire.read();
-    GyroZ = Wire.read() << 8 | Wire.read();
-
-    rate_roll = (static_cast<float>(GyroX) / DEG_TO_LSB) - rate_roll_cal;
-    rate_pitch = (static_cast<float>(GyroY) / DEG_TO_LSB) - rate_pitch_cal;
-    rate_yaw = (static_cast<float>(GyroZ) / DEG_TO_LSB) - rate_yaw_cal;
-
+    raw_x = Wire.read() << 8 | Wire.read();
+    raw_y = Wire.read() << 8 | Wire.read();
+    raw_z = Wire.read() << 8 | Wire.read();
+    gyro.roll = (static_cast<float>(raw_x) / DEG_TO_LSB) - cal.roll;
+    gyro.pitch = (static_cast<float>(raw_y) / DEG_TO_LSB) - cal.pitch;
+    gyro.yaw = (static_cast<float>(raw_z) / DEG_TO_LSB) - cal.yaw;
     return true;
   }
   return false;
@@ -335,42 +345,45 @@ void motor_signals() {
   }
 }
 
+/**
+ * @brief Calculate the angular rate of the input
+ * @details The input is a user value from the radio transmitter
+ * we need to convert this to an angular rate that the PID controller can use
+ * @param input The input from the user
+ * @return Rpy<float> The angular rate of the input
+ */
 Rpy<float> angular_rate_of_input(Rpy<float> input) {
-  const float SLOPE = 0.15;
-  const unsigned DEFAULT_INPUT = 1500;
+  auto calculate_desired = [](float input_value) -> float {
+    const float SLOPE = 0.15;
+    const unsigned DEFAULT_INPUT = 1500;
+    return SLOPE * (input_value - DEFAULT_INPUT);
+  };
+
   Rpy<float> desired;
-  desired.pitch = SLOPE * (input.pitch - DEFAULT_INPUT);
-  desired.roll = SLOPE * (input.roll - DEFAULT_INPUT);
-  desired.yaw = SLOPE * (input.yaw - DEFAULT_INPUT);
+  desired.roll = calculate_desired(input.roll);
+  desired.pitch = calculate_desired(input.pitch);
+  desired.yaw = calculate_desired(input.yaw);
   return desired;
 }
 
-PidOut pid_equation(float err, Pid pid, float prev_err, float prev_i) {
+float pid_equation(const Pid constants, float err, float &prev_err, float &prev_iterm) {
   const int MAGIC_CAP = 400;
   const float MAGIC_TERM = 0.004;
   const unsigned MAGIC_I_DIV = 2;
-  float p_err = pid.p * err;
-  float i_err = prev_i + pid.i * (err + prev_err) * MAGIC_TERM / MAGIC_I_DIV;
-  if (i_err > MAGIC_CAP)
-    i_err = MAGIC_CAP;
-  else if (i_err < -MAGIC_CAP)
-    i_err = -MAGIC_CAP;
-  float d_err = pid.d * (err - prev_err ) / MAGIC_TERM;
+  float p_err = constants.p * err;
+  float i_err = prev_iterm + constants.i * (err + prev_err) * MAGIC_TERM / MAGIC_I_DIV;
+  i_err = min(max(i_err, -MAGIC_CAP), MAGIC_CAP);
+  float d_err = constants.d * (err - prev_err ) / MAGIC_TERM;
   float pid_output = p_err + i_err + d_err;
-  if (pid_output > MAGIC_CAP)
-    pid_output = MAGIC_CAP;
-  else if (pid_output < -MAGIC_CAP)
-    pid_output = -MAGIC_CAP;
-  return {pid_output, err, -pid.i};
+  pid_output = min(max(pid_output, -MAGIC_CAP), MAGIC_CAP);
+  prev_err = err;
+  prev_iterm = i_err;
+  return pid_output;
 }
 
-void pid_reset() {
-  error_prev.roll = 0.0;
-  error_prev.pitch = 0.0;
-  error_prev.yaw = 0.0;
-  i_term_prev.roll = 0.0;
-  i_term_prev.pitch = 0.0;
-  i_term_prev.yaw = 0.0;
+void pid_reset(Rpy<float> &prev_err, Rpy<float> &prev_iterm) {
+  prev_err = Rpy<float>();
+  prev_iterm = Rpy<float>();
 }
 
 void wifi_setup() {
@@ -449,8 +462,4 @@ void wifi_state_emergency() {
   client.print(html_emergency_2);
 
   last_contact = millis();
-}
-
-RxOut read_receiver() {
-  return {{1500.0, 1500.0, 1500.0}, 1500.0};
 }
