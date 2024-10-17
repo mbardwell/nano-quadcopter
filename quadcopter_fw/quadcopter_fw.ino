@@ -82,18 +82,18 @@ struct RxOut {
   float throttle = 0.0;
 } rx_out;
 
-bool imu_signals();
 void imu_setup();
-bool pressure_signals();
+bool imu_signals();
 void pressure_setup();
-bool pmon_signals();
+bool pressure_signals();
 void pmon_setup();
-bool wifi_signals();
+bool pmon_signals();
 void wifi_setup();
+bool wifi_signals();
 void wifi_state_emergency();
 RxOut read_receiver();
-void motor_signals();
 void motor_setup();
+void motor_signals();
 void motor_off();
 Rpy<float> angular_rate_of_input(Rpy<float> input);
 PidOut pid_equation(float err, Pid pid, float prev_err, float prev_I);
