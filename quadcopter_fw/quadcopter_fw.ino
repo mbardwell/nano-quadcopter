@@ -45,7 +45,6 @@ Adafruit_Sensor *bmp_pressure = bmp.getPressureSensor();
 float current, voltage;
 sensors_event_t temp_event, pressure_event;
 WiFiServer server(WIFI_PORT);
-bool emergency = false;
 struct Motor {
   unsigned one = MOTOR_MIN;
   unsigned two = MOTOR_MIN;
@@ -95,8 +94,8 @@ bool pressure_signals();
 void pmon_setup();
 bool pmon_signals();
 void wifi_setup();
-bool wifi_signals(UserInput &);
-void wifi_state_emergency();
+bool wifi_signals(UserInput &, bool &);
+void wifi_state_emergency(bool &);
 void motor_setup();
 void motor_signals(const Motor &);
 void motor_off();
@@ -133,11 +132,11 @@ void loop() {
   static bool do_print = false;
   static Rpy<float> imu_cal, imu_rate, pid_mem_err, pid_mem_iterm;
   static Motor m_values;
-  UserInput user_input;
+  static bool emergency = false;
 
   if (emergency) {
     motor_off();
-    wifi_state_emergency();
+    wifi_state_emergency(emergency);
     digitalWrite(PIN_LED_EMERGENCY, HIGH);
     return;
   }
@@ -175,7 +174,8 @@ void loop() {
     Serial.println(pressure_event.pressure);
   }
 
-  if (wifi_signals(user_input)) {
+  UserInput user_input;
+  if (wifi_signals(user_input, emergency)) {
     if (user_input.throttle < THROTTLE_MIN + 50) {
       pid_reset(pid_mem_err, pid_mem_iterm);
       motor_off();
@@ -406,7 +406,7 @@ void wifi_setup() {
   server.begin();
 }
 
-bool wifi_signals(UserInput &user_input) {
+bool wifi_signals(UserInput &user_input, bool &emergency) {
   String client_request;
 
   if ((millis() - last_contact) > EMERGENCY_KILL_MS) {
@@ -453,7 +453,7 @@ bool wifi_signals(UserInput &user_input) {
   return true;
 }
 
-void wifi_state_emergency() {
+void wifi_state_emergency(bool &emergency) {
   String client_request;
   WiFiClient client = server.accept();
 
