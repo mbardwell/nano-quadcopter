@@ -143,7 +143,8 @@ void loop() {
   digitalWrite(PIN_LED_EMERGENCY, LOW);
 
   if (imu_cal == Rpy<float>()) {
-    static_cast<void>(imu_calibration(imu_cal));
+    if (!imu_calibration(imu_cal))
+      Serial.println("IMU calibration failed");
   }
 
   if ((millis() - print_hold) > PRINT_PERIOD_MS) {
@@ -225,19 +226,19 @@ void imu_setup() {
 bool imu_calibration(Rpy<float> &cal) {
   const unsigned N = 2000;
   unsigned n_fail = 0;
-  Rpy<float> r_sum, r;
+  Rpy<float> r_sum, r_once;
   for (unsigned i = 0; i < N; ++i) {
-    if (!imu_signals(Rpy<float>(), r)) {
+    if (!imu_signals(Rpy<float>(), r_once)) {
       if (++n_fail > 10)
         return false;
       continue;
     }
-    r_sum = r + r_sum;
+    r_sum = r_once + r_sum;
     delay(1);
   }
-  cal.roll = r.roll / static_cast<float>(N);
-  cal.pitch = r.pitch / static_cast<float>(N);
-  cal.yaw = r.yaw / static_cast<float>(N);
+  cal.roll = r_sum.roll / static_cast<float>(N);
+  cal.pitch = r_sum.pitch / static_cast<float>(N);
+  cal.yaw = r_sum.yaw / static_cast<float>(N);
   Serial.printf("IMU Calibration. Roll: %.2f Pitch: %.2f Yaw: %.2f\n", cal.roll, cal.pitch, cal.yaw);
   return true;
 }
