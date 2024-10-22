@@ -84,6 +84,11 @@ struct UserInput {
   Rpy<float> rpy;
   float throttle = THROTTLE_MIN;
   bool on = false;
+
+  void print() const {
+    Serial.printf("User Input: Roll=%.2f, Pitch=%.2f, Yaw=%.2f, Throttle=%.2f, On=%s\n", 
+                  rpy.roll, rpy.pitch, rpy.yaw, throttle, on ? "true" : "false");
+  }
 };
 
 void imu_setup();
@@ -129,7 +134,7 @@ void setup() {
 void loop() {
   const int PRINT_PERIOD_MS = 5000;
   static int print_hold = 0;
-  static bool do_print = false;
+  static bool loop_print = false;
   static Rpy<float> imu_cal, imu_rate, pid_mem_err, pid_mem_iterm;
   static Motor m_values;
   static bool emergency = false;
@@ -148,18 +153,18 @@ void loop() {
   }
 
   if ((millis() - print_hold) > PRINT_PERIOD_MS) {
-    do_print = true;
+    loop_print = true;
     print_hold = millis();
   }
 
-  if (pmon_signals() && do_print) {
+  if (pmon_signals() && loop_print) {
     Serial.print("Voltage [V]= ");
     Serial.print(voltage);
     Serial.print(" Current [A]= ");
     Serial.println(current);
   }
 
-  if (imu_signals(imu_cal, imu_rate) && do_print) {
+  if (imu_signals(imu_cal, imu_rate) && loop_print) {
     Serial.print("Roll rate [°/s]= ");
     Serial.print(imu_rate.roll);
     Serial.print(" Pitch Rate [°/s]= ");
@@ -168,7 +173,7 @@ void loop() {
     Serial.println(imu_rate.yaw);
   }
 
-  if (pressure_signals() && do_print) {
+  if (pressure_signals() && loop_print) {
     Serial.print("Temperature [*C]= ");
     Serial.print(temp_event.temperature);
     Serial.print(" Pressure [hPa]= ");
@@ -177,7 +182,8 @@ void loop() {
 
   UserInput user_input;
   if (wifi_signals(user_input, emergency)) {
-    if (user_input.throttle < THROTTLE_MIN + 50) {
+    user_input.print();
+    if (!user_input.on || user_input.throttle < THROTTLE_MIN + 50) {
       pid_reset(pid_mem_err, pid_mem_iterm);
       motor_off();
     }
@@ -189,10 +195,11 @@ void loop() {
       pid_out.pitch = pid_equation(kPidCoeffs.pitch, error.pitch, pid_mem_err.pitch, pid_mem_iterm.pitch);
       pid_out.yaw = pid_equation(kPidCoeffs.yaw, error.yaw, pid_mem_err.yaw, pid_mem_iterm.yaw);
       m_values = calculate_motor_signals(user_input.throttle, pid_out);
+      motor_signals(m_values);
     }
   }
 
-  do_print = false;
+  loop_print = false;
 }
 
 void pmon_setup() {
@@ -315,6 +322,11 @@ void motor_signals(const Motor &value) {
   m3_esc.writeMicroseconds(value.three);
   m4_esc.writeMicroseconds(value.four);
   digitalWrite(PIN_LED_MOTOR, HIGH);
+  static int anti_spam = 0;
+  if ((millis() - anti_spam) > 100) {
+    Serial.printf("Setting motors to %d %d %d %d\n", value.one, value.two, value.three, value.four);
+    anti_spam = millis();
+  }
 }
 
 void motor_off() {
