@@ -186,23 +186,27 @@ void loop() {
     Serial.println(pressure_event.pressure);
   }
 
-  UserInput user_input;
+  static UserInput user_input;
+  user_input.throttle = 1500;  // Remove me
   if (wifi_signals(user_input, emergency)) {
     user_input.print();
-    if (!user_input.on || user_input.throttle < THROTTLE_MIN + 50) {
+    if (user_input.throttle < THROTTLE_MIN + 50) {
       pid_reset(pid_mem_err, pid_mem_iterm);
-      motor_off();
     }
-    else {
-      Rpy<float> desired = angular_rate_of_input(user_input.rpy);
-      Rpy<float> error = desired - imu_rate;
-      Rpy<float> pid_out;
-      pid_out.roll = pid_equation(kPidCoeffs.roll, error.roll, pid_mem_err.roll, pid_mem_iterm.roll);
-      pid_out.pitch = pid_equation(kPidCoeffs.pitch, error.pitch, pid_mem_err.pitch, pid_mem_iterm.pitch);
-      pid_out.yaw = pid_equation(kPidCoeffs.yaw, error.yaw, pid_mem_err.yaw, pid_mem_iterm.yaw);
-      m_values = calculate_motor_signals(user_input.throttle, pid_out);
-      motor_signals(m_values);
-    }
+  }
+
+  Rpy<float> desired = angular_rate_of_input(user_input.rpy);
+  Rpy<float> error = desired - imu_rate;
+  Rpy<float> pid_out;
+  pid_out.roll = pid_equation(kPidCoeffs.roll, error.roll, pid_mem_err.roll, pid_mem_iterm.roll);
+  pid_out.pitch = pid_equation(kPidCoeffs.pitch, error.pitch, pid_mem_err.pitch, pid_mem_iterm.pitch);
+  pid_out.yaw = pid_equation(kPidCoeffs.yaw, error.yaw, pid_mem_err.yaw, pid_mem_iterm.yaw);
+  if (user_input.on) {
+    m_values = calculate_motor_signals(user_input.throttle, pid_out);
+    motor_signals(m_values);
+  }
+  else {
+    motor_off();
   }
 
   loop_print = false;
