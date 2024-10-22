@@ -82,8 +82,8 @@ constexpr Rpy<Pid> kPidCoeffs = {
 };
 struct UserInput {
   Rpy<float> rpy;
-  float throttle;
-  bool on;
+  float throttle = THROTTLE_MIN;
+  bool on = false;
 };
 
 void imu_setup();
@@ -295,8 +295,7 @@ void pressure_setup() {
 }
 
 bool pressure_signals() {
-  if (
-    bmp_temp->getEvent(&temp_event) && bmp_pressure->getEvent(&pressure_event))
+  if (bmp_temp->getEvent(&temp_event) && bmp_pressure->getEvent(&pressure_event))
     return true;
   return false;
 }
@@ -319,12 +318,16 @@ void motor_signals(const Motor &value) {
 }
 
 void motor_off() {
-  // TODO: Use MOTOR_MIN?
-  m1_esc.writeMicroseconds(0);
-  m2_esc.writeMicroseconds(0);
-  m3_esc.writeMicroseconds(0);
-  m4_esc.writeMicroseconds(0);
+  m1_esc.writeMicroseconds(MOTOR_MIN);
+  m2_esc.writeMicroseconds(MOTOR_MIN);
+  m3_esc.writeMicroseconds(MOTOR_MIN);
+  m4_esc.writeMicroseconds(MOTOR_MIN);
   digitalWrite(PIN_LED_MOTOR, HIGH);
+  static int anti_spam = 0;
+  if ((millis() - anti_spam) > 5000) {
+    Serial.println("Motors turned off");
+    anti_spam = millis();
+  }
 }
 
 /**
