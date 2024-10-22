@@ -31,8 +31,10 @@ const String html_hd = "<!DOCTYPE html><html><head><title>Quadcopter Control</ti
 auto html_IV = [](float I, float V) -> String { return "<body><h2>Current and Voltage Information</h2><div class='info'><p><strong>Current:</strong> " + String(I) + " A</p><p><strong>Voltage:</strong> " + String(V) + " V</p></div></body></html>"; };
 const String html_motor_on = "<form id='F1' action='MOTOR ON'><input type='submit' value='MOTOR ON' style='padding: 120px 140px; font-size: 124px; margin: 110px; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 15px;'></form><br>";
 const String html_motor_off = "<form id='F2' action='MOTOR OFF'><input type='submit' value='MOTOR OFF' style='padding: 120px 140px; font-size: 124px; margin: 110px; cursor: pointer; background-color: #f44336; color: white; border: none; border-radius: 15px;'></form><br>";
-const String html_motor_val = "<form id='F3' action='MOTOR VALUE'><input type='number' name='motor_value' required style='padding: 20px; font-size: 24px; margin: 10px; width: 100%; max-width: 300px;'></form>";
-const String html_set_mval = "<input type='submit' value='Set Motor Value' style='padding: 20px 40px; font-size: 24px; margin: 10px; cursor: pointer; background-color: #2196F3; color: white; border: none; border-radius: 5px;'></form></div></body></html>";
+const String html_set_mval = "<form id='F3' action='MOTOR VALUE' method='POST'>"
+                              "<input type='number' name='motor_value' required style='padding: 20px; font-size: 24px; margin: 10px; width: 100%; max-width: 300px;'>"
+                              "<input type='submit' value='SET MOTOR VALUE' style='padding: 20px; font-size: 24px; cursor: pointer; background-color: #008CBA; color: white; border: none; border-radius: 5px;'>"
+                              "</form>";
 const String html_ft = "</div></body></html>";
 const String html_emergency_1 = "<!DOCTYPE html><html><head><title>Emergency State</title></head><body><div id='main'><h1>Emergency State</h1>";
 const String html_emergency_2 = "<form id='F1' action='RESET'><input type='submit' value='RESET' style='padding: 120px 140px; font-size: 124px; margin: 110px; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 15px;'></form><br>";
@@ -63,6 +65,9 @@ struct Rpy {
   T pitch = T();
   T yaw = T();
 
+  Rpy() = default;
+  Rpy(T r, T p, T y) : roll(r), pitch(p), yaw(y) {};
+
   Rpy<T> operator+(const Rpy<T> &rhs) const {
     return {roll + rhs.roll, pitch + rhs.pitch, yaw + rhs.yaw};
   }
@@ -75,7 +80,7 @@ struct Rpy {
     return roll == rhs.roll && pitch == rhs.pitch && yaw == rhs.yaw;
   }
 };
-constexpr Rpy<Pid> kPidCoeffs = {
+const Rpy<Pid> kPidCoeffs = {
   {0.6, 3.5, 0.03},
   {0.6, 3.5, 0.03},
   {2, 12, 0},
@@ -139,6 +144,7 @@ void loop() {
   static Motor m_values;
   static bool emergency = false;
 
+  // Keep this at the top
   if (emergency) {
     motor_off();
     wifi_state_emergency(emergency);
@@ -434,6 +440,7 @@ bool wifi_signals(UserInput &user_input, bool &emergency) {
     return false;
 
   client_request = client.readStringUntil('\n');
+  Serial.printf("Client request: %s\n", client_request.c_str());
   if (client_request.indexOf("MOTOR%20ON") > 0) {
     Serial.println("Turning motors on");
     user_input.on = true;
@@ -447,20 +454,20 @@ bool wifi_signals(UserInput &user_input, bool &emergency) {
     int end_index = client_request.indexOf(' ', start_index);
     String motor_value_s = client_request.substring(start_index, end_index);
     user_input.throttle = motor_value_s.toFloat();
-    Serial.printf("Setting motor value to %d\n", user_input.throttle);
+    Serial.printf("Setting motor value to %.2f\n", user_input.throttle);
+  }
+  else if (client_request.indexOf("dummyRPY") > 0) {
+    user_input.rpy = Rpy<float>(0.0, 0.0, 0.0);
   }
   else if (client_request.indexOf("favicon") > 0) {}
   else
-    Serial.printf("Failed to parse request %s", client_request);
-
-  user_input.rpy = Rpy<float>();  // TODO: Get from client_request
+    Serial.printf("Failed to parse request %s\n", client_request.c_str());
 
   client.print(header);
   client.print(html_hd);
   client.print(html_IV(current, voltage));
   client.print(html_motor_on);
   client.print(html_motor_off);
-  client.print(html_motor_val);
   client.print(html_set_mval);
   client.print(html_ft);
   client.flush();
@@ -487,8 +494,11 @@ void wifi_state_emergency(bool &emergency) {
     Serial.printf("Failed to parse request %s", client_request);
 
   client.print(header);
+  client.print(html_hd);
   client.print(html_emergency_1);
   client.print(html_emergency_2);
+  client.print(html_ft);
+  client.flush();
 
   last_contact = millis();
 }
