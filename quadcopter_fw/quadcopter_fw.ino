@@ -24,6 +24,9 @@ constexpr unsigned EMERGENCY_KILL_MS = 30000;
 constexpr unsigned THROTTLE_MAX = 1800;
 constexpr unsigned THROTTLE_IDLE = 1180;
 constexpr unsigned THROTTLE_MIN = 1000;
+constexpr float RPY_MAX = 2000.0;
+constexpr float RPY_DEFAULT = 1500.0;
+constexpr float RPY_MIN = 1000.0;
 constexpr unsigned MOTOR_MAX = 1999; // Translates to 100% motor power. Max is theoretically 2000, but this works
 constexpr unsigned MOTOR_MIN = THROTTLE_IDLE; // Translates to 0% motor power. Min is theoretically 1000, but this works
 const String header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
@@ -61,9 +64,9 @@ struct Pid {
 };
 template<typename T>
 struct Rpy {
-  T roll = T();
-  T pitch = T();
-  T yaw = T();
+  T roll;
+  T pitch;
+  T yaw;
 
   Rpy() = default;
   Rpy(T r, T p, T y) : roll(r), pitch(p), yaw(y) {};
@@ -87,8 +90,8 @@ const Rpy<Pid> kPidCoeffs = {
 };
 struct UserInput {
   Rpy<float> rpy;
-  float throttle = THROTTLE_MIN;
-  bool on = false;
+  float throttle;
+  bool on;
 
   void print() const {
     Serial.printf("User Input: Roll=%.2f, Pitch=%.2f, Yaw=%.2f, Throttle=%.2f, On=%s\n", 
@@ -186,7 +189,7 @@ void loop() {
     Serial.println(pressure_event.pressure);
   }
 
-  static UserInput user_input;
+  static UserInput user_input = {Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT), THROTTLE_IDLE, false};
   user_input.throttle = 1500;  // Remove me
   if (wifi_signals(user_input, emergency)) {
     user_input.print();
@@ -201,6 +204,9 @@ void loop() {
   pid_out.roll = pid_equation(kPidCoeffs.roll, error.roll, pid_mem_err.roll, pid_mem_iterm.roll);
   pid_out.pitch = pid_equation(kPidCoeffs.pitch, error.pitch, pid_mem_err.pitch, pid_mem_iterm.pitch);
   pid_out.yaw = pid_equation(kPidCoeffs.yaw, error.yaw, pid_mem_err.yaw, pid_mem_iterm.yaw);
+  if (loop_print) {
+    Serial.printf("PID Output: Roll=%.2f, Pitch=%.2f, Yaw=%.2f\n", pid_out.roll, pid_out.pitch, pid_out.yaw);
+  }
   if (user_input.on) {
     m_values = calculate_motor_signals(user_input.throttle, pid_out);
     motor_signals(m_values);
@@ -327,10 +333,14 @@ void motor_setup() {
 }
 
 void motor_signals(const Motor &value) {
-  m1_esc.writeMicroseconds(value.one);
-  m2_esc.writeMicroseconds(value.two);
-  m3_esc.writeMicroseconds(value.three);
-  m4_esc.writeMicroseconds(value.four);
+  auto clamp_motor_values = [](unsigned val) -> unsigned {
+    return std::min(std::max(val, MOTOR_MIN), MOTOR_MAX);
+  };
+
+  m1_esc.writeMicroseconds(clamp_motor_values(value.one));
+  m2_esc.writeMicroseconds(clamp_motor_values(value.two));
+  m3_esc.writeMicroseconds(clamp_motor_values(value.three));
+  m4_esc.writeMicroseconds(clamp_motor_values(value.four));
   digitalWrite(PIN_LED_MOTOR, HIGH);
   static int anti_spam = 0;
   if ((millis() - anti_spam) > 100) {
@@ -389,14 +399,6 @@ Motor calculate_motor_signals(float throttle, const Rpy<float> &pid_output) {
   m.three = MAGIC_MOTOR * (throttle + pid_output.roll + pid_output.pitch - pid_output.yaw);
   m.four = MAGIC_MOTOR * (throttle + pid_output.roll - pid_output.pitch + pid_output.yaw);
 
-  auto clamp_motor_values = [](unsigned &val) {
-    val = std::min(std::max(val, MOTOR_MIN), MOTOR_MAX);
-  };
-  clamp_motor_values(m.one);
-  clamp_motor_values(m.two);
-  clamp_motor_values(m.three);
-  clamp_motor_values(m.four);
-
   return m;
 }
 
@@ -408,7 +410,7 @@ float pid_equation(const Pid constants, float err, float &prev_err, float &prev_
   float i_err = prev_iterm + constants.i * (err + prev_err) * MAGIC_TERM / MAGIC_I_DIV;
   i_err = min(max(i_err, -MAGIC_CAP), MAGIC_CAP);
   float d_err = constants.d * (err - prev_err ) / MAGIC_TERM;
-  float pid_output = p_err + i_err + d_err;
+  float pid_output = p_err;// + i_err + d_err;
   pid_output = min(max(pid_output, -MAGIC_CAP), MAGIC_CAP);
   prev_err = err;
   prev_iterm = i_err;
@@ -461,7 +463,7 @@ bool wifi_signals(UserInput &user_input, bool &emergency) {
     Serial.printf("Setting motor value to %.2f\n", user_input.throttle);
   }
   else if (client_request.indexOf("dummyRPY") > 0) {
-    user_input.rpy = Rpy<float>(0.0, 0.0, 0.0);
+    user_input.rpy = Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT);
   }
   else if (client_request.indexOf("favicon") > 0) {}
   else
