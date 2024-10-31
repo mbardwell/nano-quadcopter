@@ -7,6 +7,8 @@
 #include <WiFi.h>
 #include <Wire.h>
 
+#include "html.hpp"
+
 constexpr pin_size_t PIN_M1 = 0;
 constexpr pin_size_t PIN_M2 = 2;
 constexpr pin_size_t PIN_M3 = 4;
@@ -29,19 +31,6 @@ constexpr float RPY_DEFAULT = 1500.0;
 constexpr float RPY_MIN = 1000.0;
 constexpr unsigned MOTOR_MAX = 1999; // Translates to 100% motor power. Max is theoretically 2000, but this works
 constexpr unsigned MOTOR_MIN = THROTTLE_IDLE; // Translates to 0% motor power. Min is theoretically 1000, but this works
-const String header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
-const String html_hd = "<!DOCTYPE html><html><head><title>Quadcopter Control</title></head><body><div id='main'><h1>Quadcopter Control</h1>";
-auto html_IV = [](float I, float V) -> String { return "<body><h2>Current and Voltage Information</h2><div class='info'><p><strong>Current:</strong> " + String(I) + " A</p><p><strong>Voltage:</strong> " + String(V) + " V</p></div></body></html>"; };
-const String html_motor_on = "<form id='F1' action='MOTOR ON'><input type='submit' value='MOTOR ON' style='padding: 120px 140px; font-size: 124px; margin: 110px; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 15px;'></form><br>";
-const String html_motor_off = "<form id='F2' action='MOTOR OFF'><input type='submit' value='MOTOR OFF' style='padding: 120px 140px; font-size: 124px; margin: 110px; cursor: pointer; background-color: #f44336; color: white; border: none; border-radius: 15px;'></form><br>";
-const String html_set_mval = "<form id='F3' action='MOTOR VALUE' method='POST'>"
-                              "<input type='number' name='motor_value' required style='padding: 20px; font-size: 24px; margin: 10px; width: 100%; max-width: 300px;'>"
-                              "<input type='submit' value='SET MOTOR VALUE' style='padding: 20px; font-size: 24px; cursor: pointer; background-color: #008CBA; color: white; border: none; border-radius: 5px;'>"
-                              "</form>";
-const String html_ft = "</div></body></html>";
-const String html_emergency_1 = "<!DOCTYPE html><html><head><title>Emergency State</title></head><body><div id='main'><h1>Emergency State</h1>";
-const String html_emergency_2 = "<form id='F1' action='RESET'><input type='submit' value='RESET' style='padding: 120px 140px; font-size: 124px; margin: 110px; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 15px;'></form><br>";
-
 
 Servo m1_esc, m2_esc, m3_esc, m4_esc;
 Adafruit_BMP280 bmp;
@@ -447,15 +436,15 @@ bool wifi_signals(UserInput &user_input, bool &emergency) {
 
   client_request = client.readStringUntil('\n');
   Serial.printf("Client request: %s\n", client_request.c_str());
-  if (client_request.indexOf("MOTOR%20ON") > 0) {
+  if (client_request.indexOf("motor_on") > 0) {
     Serial.println("Turning motors on");
     user_input.on = true;
   }
-  else if (client_request.indexOf("MOTOR%20OFF") > 0) {
+  else if (client_request.indexOf("motor_off") > 0) {
     Serial.println("Turning motors off");
     user_input.on = false;
   }
-  else if (client_request.indexOf("MOTOR%20VALUE?motor_value=") > 0) {
+  else if (client_request.indexOf("motor_value?motor_value=") > 0) {
     int start_index = client_request.indexOf('=') + 1;
     int end_index = client_request.indexOf(' ', start_index);
     String motor_value_s = client_request.substring(start_index, end_index);
@@ -466,16 +455,12 @@ bool wifi_signals(UserInput &user_input, bool &emergency) {
     user_input.rpy = Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT);
   }
   else if (client_request.indexOf("favicon") > 0) {}
+  else if (client_request.indexOf("GET /") > 0) {}
   else
     Serial.printf("Failed to parse request %s\n", client_request.c_str());
-
-  client.print(header);
-  client.print(html_hd);
-  client.print(html_IV(current, voltage));
-  client.print(html_motor_on);
-  client.print(html_motor_off);
-  client.print(html_set_mval);
-  client.print(html_ft);
+  
+  client.print(html_header);
+  client.print(html_running(current, voltage));
   client.flush();
 
   last_contact = millis();
@@ -490,20 +475,19 @@ void wifi_state_emergency(bool &emergency) {
     return;
 
   client_request = client.readStringUntil('\n');
-  if (client_request.indexOf("RESET") > 0) {
+  Serial.printf("Client request: %s\n", client_request.c_str());
+  if (client_request.indexOf("reset") > 0) {
     Serial.println("Exiting emergency state");
     emergency = false;
     return;
   }
   else if (client_request.indexOf("favicon") > 0) {}
+  else if (client_request.indexOf("GET /") > 0) {}
   else
-    Serial.printf("Failed to parse request %s", client_request);
+    Serial.printf("Failed to parse request %s\n", client_request.c_str());
 
-  client.print(header);
-  client.print(html_hd);
-  client.print(html_emergency_1);
-  client.print(html_emergency_2);
-  client.print(html_ft);
+  client.print(html_header);
+  client.print(html_emergency);
   client.flush();
 
   last_contact = millis();
