@@ -85,10 +85,10 @@ auto html_running = [](float I, float V) -> String {
         </form>
 
         <form id="F3" action="motor_value" method="GET">
-            <label for="motor_value"><strong>Set Motor Value:</strong></label><br>
+            <label for="motor_value"><strong>set_motor_value:</strong></label><br>
             <input type="number" name="motor_value" id="motor_value" required>
             <br>
-            <input type="submit" value="SET MOTOR VALUE" class="button blue-button">
+            <input type="submit" value="set_motor_value" class="button blue-button">
         </form>
     </div>
 </body>

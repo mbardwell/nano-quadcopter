@@ -479,6 +479,9 @@ void wifi_state_emergency(bool &emergency) {
   if (client_request.indexOf("reset") > 0) {
     Serial.println("Exiting emergency state");
     emergency = false;
+    client.print(html_header);
+    client.print(html_running(current, voltage));
+    client.flush();
     return;
   }
   else if (client_request.indexOf("favicon") > 0) {}
