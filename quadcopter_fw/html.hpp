@@ -4,7 +4,15 @@
 
 const String html_header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
 
-auto html_running = [](float I, float V) -> String {
+struct Telemetry {
+    float I;
+    float V;
+    float alt;
+    bool alt_cal;
+    bool imu_cal;
+};
+
+auto html_running = [](const Telemetry &data) -> String {
     return R"(
 <!DOCTYPE html>
 <head>
@@ -70,10 +78,12 @@ auto html_running = [](float I, float V) -> String {
 <body>
     <div id="main">
         <h1>Quadcopter Control</h1>
-        <h2>Current and Voltage Information</h2>
         <div class="info">
-            <p><strong>Current:</strong> )" + String(I) + R"( A</p>
-            <p><strong>Voltage:</strong> )" + String(V) + R"( V</p>
+            <strong>Current:</strong> )" + String(data.I) + R"( A 
+            <strong>Voltage:</strong> )" + String(data.V) + R"( V 
+            <strong>Altitude:</strong> )" + String(data.alt) + R"( V 
+            <strong>IMU Cal:</strong> )" + String(data.imu_cal ? "Yes" : "No") + R"(
+            <strong>Alt Cal:</strong> )" + String(data.alt_cal ? "Yes" : "No") + R"(
         </div>
 
         <form id="F1" action="motor_on" method="POST">

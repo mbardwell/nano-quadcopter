@@ -90,10 +90,21 @@ struct BmpData {
   float temp;
   float pressure;
   float altitude;
+  float altitude_cal;
+  bool altitude_cal_set;
+
+  BmpData() : temp(0.0), pressure(0.0), altitude(0.0), altitude_cal(0.0), altitude_cal_set(false) {}
 
   float calculate_altitude() {
-    altitude = 44330 * (1 - (pow(pressure / 1013.25, 1/5.255)));
+    // Baseline pressure and temperature changes throughout the day
+    // This value needs to be paired with a calibration value to be accurate
+    constexpr float ATM_PRESSURE_BASELINE = 1013.25;
+    altitude = 44330 * (1 - (pow(pressure / ATM_PRESSURE_BASELINE, 1/5.255))) - altitude_cal;
     return altitude;
+  }
+
+  void print() const {
+    Serial.printf("Temperature: %.2f, Pressure: %.2f, Altitude: %.2f\n", temp, pressure, altitude);
   }
 };
 
@@ -106,8 +117,8 @@ bool pressure_signals(BmpData &);
 void pmon_setup();
 bool pmon_signals();
 void wifi_setup();
-bool wifi_signals(UserInput &, bool &);
-void wifi_state_emergency(bool &);
+bool wifi_signals(UserInput &, bool &, const Telemetry &);
+void wifi_state_emergency(bool &, const Telemetry &);
 void motor_setup();
 void motor_signals(const Motor &);
 void motor_off();
@@ -143,29 +154,29 @@ void loop() {
   static int print_hold = 0;
   static bool loop_print = false;
   static Rpy<float> imu_cal, imu_rate, pid_mem_err, pid_mem_iterm;
-  static float altitude_cal = -1.0;
   static Motor m_values;
   static bool emergency = false;
   static UserInput user_input = {Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT), THROTTLE_IDLE, false};
+  static BmpData bmp_data;
+  static Telemetry telemetry;
 
   // Keep this at the top
   if (emergency) {
     user_input.on = false;
     motor_off();
-    wifi_state_emergency(emergency);
+    wifi_state_emergency(emergency, telemetry);
     digitalWrite(PIN_LED_EMERGENCY, HIGH);
     return;
   }
   digitalWrite(PIN_LED_EMERGENCY, LOW);
 
   if (imu_cal == Rpy<float>()) {
-    if (!imu_calibration(imu_cal))
-      Serial.println("IMU calibration failed");
+    telemetry.imu_cal = imu_calibration(imu_cal);
   }
 
-  if (altitude_cal == -1.0) {
-    if (!altitude_calibration(altitude_cal))
-      Serial.println("Altitude calibration failed");
+  if (!bmp_data.altitude_cal_set) {
+    telemetry.alt_cal = altitude_calibration(bmp_data.altitude_cal);
+    bmp_data.altitude_cal_set = true;
   }
 
   if ((millis() - print_hold) > PRINT_PERIOD_MS) {
@@ -178,6 +189,8 @@ void loop() {
     Serial.print(voltage);
     Serial.print(" Current [A]= ");
     Serial.println(current);
+    telemetry.V = voltage;
+    telemetry.I = current;
   }
 
   if (imu_signals(imu_cal, imu_rate) && loop_print) {
@@ -189,12 +202,12 @@ void loop() {
     Serial.println(imu_rate.yaw);
   }
 
-  static BmpData bmp_data;
   if (pressure_signals(bmp_data) && loop_print) {
-    Serial.printf("Temperature [*C]=%.2f Pressure [hPa]=%.2f Altitude [m]=%.2f\n", bmp_data.temp, bmp_data.pressure, bmp_data.altitude);
+    bmp_data.print();
+    telemetry.alt = bmp_data.altitude;
   }
 
-  if (wifi_signals(user_input, emergency)) {
+  if (wifi_signals(user_input, emergency, telemetry)) {
     user_input.print();
     if (user_input.throttle < THROTTLE_MIN + 50) {
       pid_reset(pid_mem_err, pid_mem_iterm);
@@ -324,7 +337,7 @@ bool altitude_calibration(float &alt_cal) {
   const unsigned N = 2000;
   unsigned n_fail = 0;
   BmpData once;
-  float sum;
+  float sum = 0.0;
   for (unsigned i = 0; i < N; ++i) {
     if (!pressure_signals(once)) {
       if (++n_fail > 10)
@@ -460,7 +473,7 @@ void wifi_setup() {
   server.begin();
 }
 
-bool wifi_signals(UserInput &user_input, bool &emergency) {
+bool wifi_signals(UserInput &user_input, bool &emergency, const Telemetry &telemetry) {
   String client_request;
 
   if ((millis() - last_contact) > EMERGENCY_KILL_MS) {
@@ -496,14 +509,14 @@ bool wifi_signals(UserInput &user_input, bool &emergency) {
     Serial.printf("Failed to parse request %s\n", client_request.c_str());
   
   client.print(html_header);
-  client.print(html_running(current, voltage));
+  client.print(html_running(telemetry));
   client.flush();
 
   last_contact = millis();
   return true;
 }
 
-void wifi_state_emergency(bool &emergency) {
+void wifi_state_emergency(bool &emergency, const Telemetry &telemetry) {
   String client_request;
   WiFiClient client = server.accept();
 
@@ -516,7 +529,7 @@ void wifi_state_emergency(bool &emergency) {
     Serial.println("Exiting emergency state");
     emergency = false;
     client.print(html_header);
-    client.print(html_running(current, voltage));
+    client.print(html_running(telemetry));
     client.flush();
     return;
   }
