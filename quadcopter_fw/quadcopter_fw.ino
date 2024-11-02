@@ -29,8 +29,8 @@ constexpr unsigned THROTTLE_MIN = 1000;
 constexpr float RPY_MAX = 2000.0;
 constexpr float RPY_DEFAULT = 1500.0;
 constexpr float RPY_MIN = 1000.0;
-constexpr unsigned MOTOR_MAX = 1999; // Translates to 100% motor power. Max is theoretically 2000, but this works
-constexpr unsigned MOTOR_MIN = THROTTLE_IDLE; // Translates to 0% motor power. Min is theoretically 1000, but this works
+constexpr unsigned ESC_MAX = 2000;
+constexpr unsigned ESC_MIN = 1000;
 
 Servo m1_esc, m2_esc, m3_esc, m4_esc;
 Adafruit_BMP280 bmp;
@@ -40,10 +40,10 @@ float current, voltage;
 sensors_event_t temp_event, pressure_event;
 WiFiServer server(WIFI_PORT);
 struct Motor {
-  unsigned one = MOTOR_MIN;
-  unsigned two = MOTOR_MIN;
-  unsigned three = MOTOR_MIN;
-  unsigned four = MOTOR_MIN;
+  unsigned one = ESC_MIN;
+  unsigned two = ESC_MIN;
+  unsigned three = ESC_MIN;
+  unsigned four = ESC_MIN;
 };
 int last_contact = 0;
 struct Pid {
@@ -135,9 +135,11 @@ void loop() {
   static Rpy<float> imu_cal, imu_rate, pid_mem_err, pid_mem_iterm;
   static Motor m_values;
   static bool emergency = false;
+  static UserInput user_input = {Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT), THROTTLE_IDLE, false};
 
   // Keep this at the top
   if (emergency) {
+    user_input.on = false;
     motor_off();
     wifi_state_emergency(emergency);
     digitalWrite(PIN_LED_EMERGENCY, HIGH);
@@ -178,8 +180,6 @@ void loop() {
     Serial.println(pressure_event.pressure);
   }
 
-  static UserInput user_input = {Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT), THROTTLE_IDLE, false};
-  user_input.throttle = 1500;  // Remove me
   if (wifi_signals(user_input, emergency)) {
     user_input.print();
     if (user_input.throttle < THROTTLE_MIN + 50) {
@@ -323,7 +323,7 @@ void motor_setup() {
 
 void motor_signals(const Motor &value) {
   auto clamp_motor_values = [](unsigned val) -> unsigned {
-    return std::min(std::max(val, MOTOR_MIN), MOTOR_MAX);
+    return std::min(std::max(val, ESC_MIN), ESC_MAX);
   };
 
   m1_esc.writeMicroseconds(clamp_motor_values(value.one));
@@ -333,17 +333,17 @@ void motor_signals(const Motor &value) {
   digitalWrite(PIN_LED_MOTOR, HIGH);
   static int anti_spam = 0;
   if ((millis() - anti_spam) > 100) {
-    Serial.printf("Setting motors to %d %d %d %d\n", value.one, value.two, value.three, value.four);
+    Serial.printf("Setting motors to %d %d %d %d\n", clamp_motor_values(value.one), clamp_motor_values(value.two), clamp_motor_values(value.three), clamp_motor_values(value.four));
     anti_spam = millis();
   }
 }
 
 void motor_off() {
-  m1_esc.writeMicroseconds(MOTOR_MIN);
-  m2_esc.writeMicroseconds(MOTOR_MIN);
-  m3_esc.writeMicroseconds(MOTOR_MIN);
-  m4_esc.writeMicroseconds(MOTOR_MIN);
-  digitalWrite(PIN_LED_MOTOR, HIGH);
+  m1_esc.writeMicroseconds(ESC_MIN);
+  m2_esc.writeMicroseconds(ESC_MIN);
+  m3_esc.writeMicroseconds(ESC_MIN);
+  m4_esc.writeMicroseconds(ESC_MIN);
+  digitalWrite(PIN_LED_MOTOR, LOW);
   static int anti_spam = 0;
   if ((millis() - anti_spam) > 5000) {
     Serial.println("Motors turned off");
@@ -375,10 +375,10 @@ Rpy<float> angular_rate_of_input(const Rpy<float> &input) {
 Motor calculate_motor_signals(float throttle, const Rpy<float> &pid_output) {
   Motor m;
   if (throttle < THROTTLE_MIN + 50) {
-    m.one = MOTOR_MIN;
-    m.two = MOTOR_MIN;
-    m.three = MOTOR_MIN;
-    m.four = MOTOR_MIN;
+    m.one = ESC_MIN;
+    m.two = ESC_MIN;
+    m.three = ESC_MIN;
+    m.four = ESC_MIN;
     return m;
   }
 
@@ -455,7 +455,6 @@ bool wifi_signals(UserInput &user_input, bool &emergency) {
     user_input.rpy = Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT);
   }
   else if (client_request.indexOf("favicon") > 0) {}
-  else if (client_request.indexOf("GET /") > 0) {}
   else
     Serial.printf("Failed to parse request %s\n", client_request.c_str());
   
@@ -485,7 +484,6 @@ void wifi_state_emergency(bool &emergency) {
     return;
   }
   else if (client_request.indexOf("favicon") > 0) {}
-  else if (client_request.indexOf("GET /") > 0) {}
   else
     Serial.printf("Failed to parse request %s\n", client_request.c_str());
 
