@@ -1,6 +1,7 @@
 // 192.168.42.1:4242 to access
 
 #include <Adafruit_BMP280.h>
+#include <cmath>
 #include <Servo.h>
 #include <WiFi.h>
 #include <Wire.h>
@@ -85,12 +86,23 @@ struct UserInput {
                   rpy.roll, rpy.pitch, rpy.yaw, throttle, on ? "true" : "false");
   }
 };
+struct BmpData {
+  float temp;
+  float pressure;
+  float altitude;
+
+  float calculate_altitude() {
+    altitude = 44330 * (1 - (pow(pressure / 1013.25, 1/5.255)));
+    return altitude;
+  }
+};
 
 void imu_setup();
 bool imu_calibration(Rpy<float> &);
 bool imu_signals(const Rpy<float> &, Rpy<float> &);
 void pressure_setup();
-bool pressure_signals();
+bool altitude_calibration(float &);
+bool pressure_signals(BmpData &);
 void pmon_setup();
 bool pmon_signals();
 void wifi_setup();
@@ -131,6 +143,7 @@ void loop() {
   static int print_hold = 0;
   static bool loop_print = false;
   static Rpy<float> imu_cal, imu_rate, pid_mem_err, pid_mem_iterm;
+  static float altitude_cal = -1.0;
   static Motor m_values;
   static bool emergency = false;
   static UserInput user_input = {Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT), THROTTLE_IDLE, false};
@@ -148,6 +161,11 @@ void loop() {
   if (imu_cal == Rpy<float>()) {
     if (!imu_calibration(imu_cal))
       Serial.println("IMU calibration failed");
+  }
+
+  if (altitude_cal == -1.0) {
+    if (!altitude_calibration(altitude_cal))
+      Serial.println("Altitude calibration failed");
   }
 
   if ((millis() - print_hold) > PRINT_PERIOD_MS) {
@@ -171,11 +189,9 @@ void loop() {
     Serial.println(imu_rate.yaw);
   }
 
-  if (pressure_signals() && loop_print) {
-    Serial.print("Temperature [*C]= ");
-    Serial.print(temp_event.temperature);
-    Serial.print(" Pressure [hPa]= ");
-    Serial.println(pressure_event.pressure);
+  static BmpData bmp_data;
+  if (pressure_signals(bmp_data) && loop_print) {
+    Serial.printf("Temperature [*C]=%.2f Pressure [hPa]=%.2f Altitude [m]=%.2f\n", bmp_data.temp, bmp_data.pressure, bmp_data.altitude);
   }
 
   if (wifi_signals(user_input, emergency)) {
@@ -304,9 +320,32 @@ void pressure_setup() {
   bmp_temp->printSensorDetails();
 }
 
-bool pressure_signals() {
-  if (bmp_temp->getEvent(&temp_event) && bmp_pressure->getEvent(&pressure_event))
+bool altitude_calibration(float &alt_cal) {
+  const unsigned N = 2000;
+  unsigned n_fail = 0;
+  BmpData once;
+  float sum;
+  for (unsigned i = 0; i < N; ++i) {
+    if (!pressure_signals(once)) {
+      if (++n_fail > 10)
+        return false;
+      continue;
+    }
+    sum = once.calculate_altitude() + sum;
+    delay(1);
+  }
+  alt_cal = sum / static_cast<float>(N);
+  Serial.printf("Altitude Calibration: %.2f\n", alt_cal);
+  return true;
+}
+
+bool pressure_signals(BmpData &data) {
+  if (bmp_temp->getEvent(&temp_event) && bmp_pressure->getEvent(&pressure_event)) {
+    data.temp = temp_event.temperature;
+    data.pressure = pressure_event.pressure;
+    static_cast<void>(data.calculate_altitude());
     return true;
+  }
   return false;
 }
 
