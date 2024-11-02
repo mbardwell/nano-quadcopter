@@ -151,7 +151,7 @@ void setup() {
 
 void loop() {
   const int PRINT_PERIOD_MS = 5000;
-  const float ANGULAR_RATE_EMERGENCY_CUTOFF = 135.0;
+  const float ANGULAR_RATE_EMERGENCY_CUTOFF = 150.0;
   static int print_hold = 0;
   static bool loop_print = false;
   static Rpy<float> imu_cal, imu_rate, pid_mem_err, pid_mem_iterm;
@@ -197,7 +197,7 @@ void loop() {
   if (imu_signals(imu_cal, imu_rate) && loop_print) {
     Serial.printf("Roll rate [°/s]=%.2f, Pitch rate [°/s]=%.2f, Yaw rate [°/s]=%.2f\n", imu_rate.roll, imu_rate.pitch, imu_rate.yaw);
   }
-  if (abs(imu_rate.roll) > ANGULAR_RATE_EMERGENCY_CUTOFF || abs(imu_rate.pitch) > ANGULAR_RATE_EMERGENCY_CUTOFF || abs(imu_rate.yaw) > ANGULAR_RATE_EMERGENCY_CUTOFF) {
+  if (abs(imu_rate.roll) > ANGULAR_RATE_EMERGENCY_CUTOFF || abs(imu_rate.pitch) > ANGULAR_RATE_EMERGENCY_CUTOFF) {
     Serial.println("Emergency cutoff due to high angular rate");
     emergency = true;
     return;
