@@ -1,6 +1,4 @@
 // 192.168.42.1:4242 to access
-// TODO: Handle anything static_cast<void>'d
-// TODO: Clear up any MAGIC numbers
 
 #include <Adafruit_BMP280.h>
 #include <Servo.h>
