@@ -117,8 +117,8 @@ bool pressure_signals(BmpData &);
 void pmon_setup();
 bool pmon_signals();
 void wifi_setup();
-bool wifi_signals(UserInput &, bool &, const Telemetry &);
-void wifi_state_emergency(bool &, const Telemetry &);
+bool wifi_signals(UserInput &, bool &, const WebInterfaceData &);
+void wifi_state_emergency(bool &, const WebInterfaceData &);
 void motor_setup();
 void motor_signals(const Motor &);
 void motor_off();
@@ -159,24 +159,24 @@ void loop() {
   static bool emergency = false;
   static UserInput user_input = {Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT), THROTTLE_IDLE, false};
   static BmpData bmp_data;
-  static Telemetry telemetry;
+  static WebInterfaceData web_data;
 
   // Keep this at the top
   if (emergency) {
     user_input.on = false;
     motor_off();
-    wifi_state_emergency(emergency, telemetry);
+    wifi_state_emergency(emergency, web_data);
     digitalWrite(PIN_LED_EMERGENCY, HIGH);
     return;
   }
   digitalWrite(PIN_LED_EMERGENCY, LOW);
 
   if (imu_cal == Rpy<float>()) {
-    telemetry.imu_cal = imu_calibration(imu_cal);
+    web_data.imu_cal = imu_calibration(imu_cal);
   }
 
   if (!bmp_data.altitude_cal_set) {
-    telemetry.alt_cal = altitude_calibration(bmp_data.altitude_cal);
+    web_data.alt_cal = altitude_calibration(bmp_data.altitude_cal);
     bmp_data.altitude_cal_set = true;
   }
 
@@ -190,8 +190,8 @@ void loop() {
     Serial.print(voltage);
     Serial.print(" Current [A]= ");
     Serial.println(current);
-    telemetry.V = voltage;
-    telemetry.I = current;
+    web_data.V = voltage;
+    web_data.I = current;
   }
 
   if (imu_signals(imu_cal, imu_rate) && loop_print) {
@@ -205,10 +205,10 @@ void loop() {
 
   if (pressure_signals(bmp_data) && loop_print) {
     bmp_data.print();
-    telemetry.alt = bmp_data.altitude;
+    web_data.alt = bmp_data.altitude;
   }
 
-  if (wifi_signals(user_input, emergency, telemetry)) {
+  if (wifi_signals(user_input, emergency, web_data)) {
     user_input.print();
     if (user_input.throttle < THROTTLE_MIN + 50) {
       pid_reset(pid_mem_err, pid_mem_iterm);
@@ -475,7 +475,7 @@ void wifi_setup() {
   server.begin();
 }
 
-bool wifi_signals(UserInput &user_input, bool &emergency, const Telemetry &telemetry) {
+bool wifi_signals(UserInput &user_input, bool &emergency, const WebInterfaceData &web_data) {
   String client_request;
 
   if ((millis() - last_contact) > EMERGENCY_KILL_MS) {
@@ -518,14 +518,14 @@ bool wifi_signals(UserInput &user_input, bool &emergency, const Telemetry &telem
     Serial.printf("Failed to parse request %s\n", client_request.c_str());
   
   client.print(html_header);
-  client.print(html_running(telemetry));
+  client.print(html_running(web_data));
   client.flush();
 
   last_contact = millis();
   return true;
 }
 
-void wifi_state_emergency(bool &emergency, const Telemetry &telemetry) {
+void wifi_state_emergency(bool &emergency, const WebInterfaceData &web_data) {
   String client_request;
   WiFiClient client = server.accept();
 
@@ -538,7 +538,7 @@ void wifi_state_emergency(bool &emergency, const Telemetry &telemetry) {
     Serial.println("Exiting emergency state");
     emergency = false;
     client.print(html_header);
-    client.print(html_running(telemetry));
+    client.print(html_running(web_data));
     client.flush();
     return;
   }

@@ -4,7 +4,7 @@
 
 const String html_header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
 
-struct Telemetry {
+struct WebInterfaceData {
     float I;
     float V;
     float alt;
@@ -12,7 +12,7 @@ struct Telemetry {
     bool imu_cal;
 };
 
-auto html_running = [](const Telemetry &data) -> String {
+auto html_running = [](const WebInterfaceData &data) -> String {
     return R"(
 <!DOCTYPE html>
 <head>
@@ -118,7 +118,7 @@ auto html_running = [](const Telemetry &data) -> String {
             <br>
             <input type="submit" value="set_motor_value" class="button blue-button">
         </form>
-        
+
         <form id="F4" action="download" method="GET">
             <input type="submit" value="Download Data" class="button blue-button">
         </form>
