@@ -22,7 +22,7 @@ constexpr byte I2C_ADDRESS_MPU = 0x68;
 constexpr char WIFI_SSID[] = "FBI-surveillance-van";
 constexpr unsigned WIFI_PORT = 4242;
 constexpr unsigned EMERGENCY_KILL_MS = 30000;
-constexpr unsigned THROTTLE_MAX = 1800;
+constexpr unsigned THROTTLE_MAX = 1800;  // Throttle max must leave headroom for roll, pitch, yaw-ing at max throttle
 constexpr unsigned THROTTLE_IDLE = 1180;
 constexpr unsigned THROTTLE_MIN = 1000;
 constexpr float RPY_MAX = 2000.0;
@@ -215,6 +215,7 @@ void loop() {
     }
   }
 
+  user_input.throttle = min(max(user_input.throttle, THROTTLE_MIN), THROTTLE_MAX);
   Rpy<float> desired = angular_rate_of_input(user_input.rpy);
   Rpy<float> error = desired - imu_rate;
   Rpy<float> pid_out;
@@ -411,7 +412,7 @@ void motor_off() {
  */
 Rpy<float> angular_rate_of_input(const Rpy<float> &input) {
   auto calculate_desired = [](float input_value) -> float {
-    const float SLOPE = 0.15;
+    const float SLOPE = 0.15;  // This correspond to 75°/s at max input
     const unsigned DEFAULT_INPUT = 1500;
     return SLOPE * (input_value - DEFAULT_INPUT);
   };
