@@ -506,6 +506,13 @@ bool wifi_signals(UserInput &user_input, bool &emergency, const Telemetry &telem
   else if (client_request.indexOf("dummyRPY") > 0) {
     user_input.rpy = Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT);
   }
+  else if (client_request.indexOf("download") > 0) {
+    Serial.println("Download data");
+    client.printf("a,b,c,d\n1,2,3,4\n");
+    client.flush();
+    last_contact = millis();
+    return true;
+  }
   else if (client_request.indexOf("favicon") > 0) {}
   else
     Serial.printf("Failed to parse request %s\n", client_request.c_str());

@@ -118,6 +118,10 @@ auto html_running = [](const Telemetry &data) -> String {
             <br>
             <input type="submit" value="set_motor_value" class="button blue-button">
         </form>
+        
+        <form id="F4" action="download" method="GET">
+            <input type="submit" value="Download Data" class="button blue-button">
+        </form>
     </div>
 </body>
 </html>
