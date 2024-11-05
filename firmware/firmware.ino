@@ -1,6 +1,7 @@
 // 192.168.42.1:4242 to access
 
 #include <Adafruit_BMP280.h>
+#include <CircularBuffer.hpp>
 #include <cmath>
 #include <Servo.h>
 #include <WiFi.h>
@@ -107,6 +108,16 @@ struct BmpData {
     Serial.printf("Temperature: %.2f, Pressure: %.2f, Altitude: %.2f\n", temp, pressure, altitude);
   }
 };
+
+struct Telemetry {
+  unsigned long time;
+  float throttle;
+  Rpy<float> input, desired, error, pid;
+  Motor motor;
+  float voltage;
+  float current;
+};
+CircularBuffer<Telemetry, 1000> telemetry_store;
 
 void imu_setup();
 bool imu_calibration(Rpy<float> &);
@@ -233,6 +244,7 @@ void loop() {
     motor_off();
   }
 
+  telemetry_store.push({millis(), user_input.throttle, user_input.rpy, desired, error, pid_out, m_values, voltage, current});
   loop_print = false;
 }
 
@@ -508,7 +520,17 @@ bool wifi_signals(UserInput &user_input, bool &emergency, const WebInterfaceData
   }
   else if (client_request.indexOf("download") > 0) {
     Serial.println("Download data");
-    client.printf("a,b,c,d\n1,2,3,4\n");
+    client.println("time,throttle,input_roll,input_pitch,input_yaw,desired_roll,desired_pitch,desired_yaw,error_roll,error_pitch,error_yaw,pid_roll,pid_pitch,pid_yaw,motor_one,motor_two,motor_three,motor_four,voltage,current");
+    for (size_t i = 0; i < telemetry_store.size(); ++i) {
+      auto entry = telemetry_store[i];
+      client.printf("%d,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f\n",
+              entry.time, entry.throttle, entry.input.roll, entry.input.pitch, entry.input.yaw,
+              entry.desired.roll, entry.desired.pitch, entry.desired.yaw,
+              entry.error.roll, entry.error.pitch, entry.error.yaw,
+              entry.pid.roll, entry.pid.pitch, entry.pid.yaw,
+              entry.motor.one, entry.motor.two, entry.motor.three, entry.motor.four,
+              entry.voltage, entry.current);
+    }
     client.flush();
     last_contact = millis();
     return true;
