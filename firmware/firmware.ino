@@ -129,6 +129,16 @@ struct Pid {
   float i = 0.0;
   float d = 0.0;
 };
+/**
+ * @brief A template structure representing Roll, Pitch, and Yaw (RPY) values.
+ * 
+ * Roll, pitch, and yaw directions are defined as follows:
+ * - Roll: +ve is clockwise (CW) rotation around the X-axis.
+ * - Pitch: +ve is clockwise (CW) rotation around the Y-axis.
+ * - Yaw: +ve is clockwise (CW) rotation around the Z-axis.
+ * 
+ * @tparam T The data type of the roll, pitch, and yaw values (e.g., float, double).
+ */
 template<typename T>
 struct Rpy {
   T roll;
