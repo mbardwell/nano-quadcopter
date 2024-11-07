@@ -1,4 +1,82 @@
-// 192.168.42.1:4242 to access
+/**
+ * @file firmware.ino
+ * @brief Firmware for a nano quadcopter project using various sensors and WiFi communication.
+ * 
+ * This firmware controls a nano quadcopter, handling motor signals, sensor data acquisition,
+ * and WiFi communication for remote control and telemetry. It includes PID control for 
+ * stabilizing the quadcopter based on IMU and pressure sensor data.
+ * 
+ * When turned on, the quadcopter will create a WiFi network with the name in WIFI_SSID below.
+ * Join that, then open a browser and go to 192.168.42.1:4242 to access the control interface.
+ * 
+ * @details
+ * The firmware includes the following functionalities:
+ * - IMU setup and calibration
+ * - Pressure sensor setup and altitude calculation
+ * - Power monitoring setup and signal processing
+ * - WiFi setup and signal processing
+ * - Motor control and emergency handling
+ * - PID control for roll, pitch, and yaw stabilization
+ * 
+ * The main loop handles sensor data acquisition, user input processing, PID calculations,
+ * and motor signal updates. It also manages emergency states and logs telemetry data.
+ * 
+ * @note
+ * - Ensure the correct wiring of sensors and motors.
+ * - Adjust PID coefficients and other constants as needed for your specific quadcopter.
+ * - The WiFi SSID and port are hardcoded and should be updated as necessary.
+ * 
+ * @section Dependencies
+ * - Adafruit BMP280 library
+ * - CircularBuffer library
+ * - Servo library
+ * - WiFi library
+ * - Wire library
+ * 
+ * @section Pin Configuration
+ * - Motor pins: PIN_M1, PIN_M2, PIN_M3, PIN_M4
+ * - I2C pins: PIN_I2C_SDA, PIN_I2C_SCL
+ * - LED pins: PIN_LED_MOTOR, PIN_LED_EMERGENCY
+ * - Power monitoring pins: PIN_IMON, PIN_VMON
+ * 
+ * @section Constants
+ * - WiFi SSID: WIFI_SSID
+ * - WiFi port: WIFI_PORT
+ * - Emergency kill timeout: EMERGENCY_KILL_MS
+ * - Throttle and ESC limits: THROTTLE_MAX, THROTTLE_IDLE, THROTTLE_MIN, ESC_MAX, ESC_MIN
+ * - PID coefficients: kPidCoeffs
+ * 
+ * @section Structures
+ * - Motor: Stores motor signal values.
+ * - Pid: Stores PID coefficients.
+ * - Rpy: Template structure for roll, pitch, and yaw values.
+ * - UserInput: Stores user input values for roll, pitch, yaw, throttle, and motor state.
+ * - BmpData: Stores BMP280 sensor data and calculates altitude.
+ * - Telemetry: Stores telemetry data for logging.
+ * 
+ * @section Functions
+ * - setup: Initializes all components and sensors.
+ * - loop: Main loop handling sensor data, user input, PID control, and motor signals.
+ * - imu_setup: Initializes the IMU.
+ * - imu_calibration: Calibrates the IMU.
+ * - imu_signals: Reads IMU signals.
+ * - pressure_setup: Initializes the pressure sensor.
+ * - altitude_calibration: Calibrates the altitude.
+ * - pressure_signals: Reads pressure sensor signals.
+ * - pmon_setup: Initializes power monitoring.
+ * - pmon_signals: Reads power monitoring signals.
+ * - wifi_setup: Initializes WiFi.
+ * - wifi_signals: Processes WiFi signals and user input.
+ * - wifi_state_emergency: Handles WiFi signals during emergency state.
+ * - motor_setup: Initializes motors.
+ * - motor_signals: Updates motor signals.
+ * - motor_off: Turns off motors.
+ * - angular_rate_of_input: Calculates angular rate from user input.
+ * - calculate_motor_signals: Calculates motor signals based on throttle and PID output.
+ * - pid_equation: Calculates PID output.
+ * - pid_reset: Resets PID memory.
+ */
+// 
 
 #include <Adafruit_BMP280.h>
 #include <CircularBuffer.hpp>
