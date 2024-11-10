@@ -9,8 +9,11 @@ logger=logging.getLogger(__name__)
 
 def download_csv_data(url, file_path):
     logger.info(f'Downloading data from {url} to {file_path}')
-    response = requests.get(url + "/reset", timeout=1)
-    response.raise_for_status()
+    try:
+        response = requests.get(url + "/reset", timeout=1)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        logger.info(f'Failed to reset data: {e}')
     response = requests.get(url + "/download", timeout=3)
     response.raise_for_status()
     with open(file_path, 'wb') as file:
@@ -34,26 +37,21 @@ def plot_csv_data(file_path):
     
     # Plot input and desired values
     plt.subplot(3, 1, 2)
-    plt.plot(data['time'], data['input_roll'], label='Input Roll')
-    plt.plot(data['time'], data['input_pitch'], label='Input Pitch')
-    plt.plot(data['time'], data['input_yaw'], label='Input Yaw')
-    plt.plot(data['time'], data['desired_roll'], label='Desired Roll')
-    plt.plot(data['time'], data['desired_pitch'], label='Desired Pitch')
-    plt.plot(data['time'], data['desired_yaw'], label='Desired Yaw')
+    plt.plot(data['time'], data['raw_roll'], label='Raw Roll')
+    plt.plot(data['time'], data['raw_pitch'], label='Raw Pitch')
+    plt.plot(data['time'], data['raw_yaw'], label='Raw Yaw')
     plt.xlabel('Time')
-    plt.ylabel('Input/Desired Values')
+    plt.ylabel('Raw Values')
     plt.legend()
     
     # Plot errors and PID values
     plt.subplot(3, 1, 3)
-    plt.plot(data['time'], data['error_roll'], label='Error Roll')
-    plt.plot(data['time'], data['error_pitch'], label='Error Pitch')
-    plt.plot(data['time'], data['error_yaw'], label='Error Yaw')
-    plt.plot(data['time'], data['pid_roll'], label='PID Roll')
-    plt.plot(data['time'], data['pid_pitch'], label='PID Pitch')
-    plt.plot(data['time'], data['pid_yaw'], label='PID Yaw')
+    plt.plot(data['time'], data['motor_one'], label='Motor 1')
+    plt.plot(data['time'], data['motor_two'], label='Motor 2')
+    plt.plot(data['time'], data['motor_three'], label='Motor 3')
+    plt.plot(data['time'], data['motor_four'], label='Motor 4')
     plt.xlabel('Time')
-    plt.ylabel('Errors/PID Values')
+    plt.ylabel('Motor Values')
     plt.legend()
     
     plt.tight_layout()
