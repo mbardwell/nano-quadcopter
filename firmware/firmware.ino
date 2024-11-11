@@ -162,8 +162,8 @@ struct Rpy {
 };
 const Rpy<Pid> kPidCoeffs = {
   {0.6, 3.5, 0.03},
-  {0.6, 3.5, 0.03},
-  {2.0, 12, 0},
+  {0.3, 3.5, 0.03},
+  {1.0, 12, 0},
 };
 struct UserInput {
   Rpy<float> rpy;
@@ -548,11 +548,11 @@ Motor calculate_motor_signals(float throttle, const Rpy<float> &pid_output) {
     return m;
   }
 
-  const float MAGIC_MOTOR = 1.024;
-  m.one = MAGIC_MOTOR * (throttle + pid_output.roll - pid_output.pitch - pid_output.yaw);
-  m.two = MAGIC_MOTOR * (throttle - pid_output.roll - pid_output.pitch + pid_output.yaw);
-  m.three = MAGIC_MOTOR * (throttle - pid_output.roll + pid_output.pitch - pid_output.yaw);
-  m.four = MAGIC_MOTOR * (throttle + pid_output.roll + pid_output.pitch + pid_output.yaw);
+  const float MOTOR_WEAK_COMPENSATION = 1.0;
+  m.one = MOTOR_WEAK_COMPENSATION * (throttle + pid_output.roll - pid_output.pitch - pid_output.yaw);
+  m.two = (throttle - pid_output.roll - pid_output.pitch + pid_output.yaw);
+  m.three = (throttle - pid_output.roll + pid_output.pitch - pid_output.yaw);
+  m.four = MOTOR_WEAK_COMPENSATION * (throttle + pid_output.roll + pid_output.pitch + pid_output.yaw);
 
   return m;
 }
