@@ -10,7 +10,7 @@ logger=logging.getLogger(__name__)
 def download_csv_data(url, file_path):
     logger.info(f'Downloading data from {url} to {file_path}')
     try:
-        response = requests.get(url + "/reset", timeout=1)
+        response = requests.get(url + "/reset", timeout=0.1)
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         logger.info(f'Failed to reset data: {e}')
