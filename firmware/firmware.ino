@@ -160,13 +160,8 @@ struct Rpy {
     return roll == rhs.roll && pitch == rhs.pitch && yaw == rhs.yaw;
   }
 };
-const Rpy<Pid> kPidCoeffs = {
-  {0.6, 3.5, 0.03},
-  {0.3, 3.5, 0.03},
-  {1.0, 12, 0},
-};
 struct UserInput {
-  Rpy<float> rpy;
+  Rpy<float> rpy, rpy_coeffs;
   Rpy<bool> rpy_on;
   float throttle;
   bool on;
@@ -206,7 +201,7 @@ struct Telemetry {
   float voltage;
   float current;
 };
-CircularBuffer<Telemetry, 1900> telemetry_store;
+CircularBuffer<Telemetry, 1800> telemetry_store;
 
 void imu_setup();
 bool imu_calibration(Rpy<float> &);
@@ -257,9 +252,14 @@ void loop() {
   static Rpy<float> imu_cal, imu_rate, pid_mem_err, pid_mem_iterm;
   static Motor m_values;
   static bool emergency = false;
-  static UserInput user_input = {Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT), Rpy<bool>{true, true, true}, THROTTLE_IDLE, false};
   static BmpData bmp_data;
   static WebInterfaceData web_data;
+  static Rpy<Pid> pid_coeffs = {
+    {0.6, 3.5, 0.03},
+    {0.3, 3.5, 0.03},
+    {1.0, 12, 0},
+  };
+  static UserInput user_input = {Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT), Rpy<float>{pid_coeffs.roll.p, pid_coeffs.pitch.p, pid_coeffs.yaw.p}, Rpy<bool>{true, true, true}, THROTTLE_IDLE, false};
 
   // Keep this at the top
   if (emergency) {
@@ -319,9 +319,15 @@ void loop() {
   Rpy<float> desired = angular_rate_of_input(user_input.rpy);
   Rpy<float> error = desired - imu_rate;
   Rpy<float> pid_out;
-  pid_out.roll = user_input.rpy_on.roll ? pid_equation(kPidCoeffs.roll, error.roll, pid_mem_err.roll, pid_mem_iterm.roll) : 0;
-  pid_out.pitch = user_input.rpy_on.pitch ? pid_equation(kPidCoeffs.pitch, error.pitch, pid_mem_err.pitch, pid_mem_iterm.pitch) : 0;
-  pid_out.yaw = user_input.rpy_on.yaw ? pid_equation(kPidCoeffs.yaw, error.yaw, pid_mem_err.yaw, pid_mem_iterm.yaw) : 0;
+  web_data.roll_coeff = pid_coeffs.roll.p;
+  web_data.pitch_coeff = pid_coeffs.pitch.p;
+  web_data.yaw_coeff = pid_coeffs.yaw.p;
+  pid_coeffs.roll.p = user_input.rpy_coeffs.roll;
+  pid_coeffs.pitch.p = user_input.rpy_coeffs.pitch;
+  pid_coeffs.yaw.p = user_input.rpy_coeffs.yaw;
+  pid_out.roll = user_input.rpy_on.roll ? pid_equation(pid_coeffs.roll, error.roll, pid_mem_err.roll, pid_mem_iterm.roll) : 0;
+  pid_out.pitch = user_input.rpy_on.pitch ? pid_equation(pid_coeffs.pitch, error.pitch, pid_mem_err.pitch, pid_mem_iterm.pitch) : 0;
+  pid_out.yaw = user_input.rpy_on.yaw ? pid_equation(pid_coeffs.yaw, error.yaw, pid_mem_err.yaw, pid_mem_iterm.yaw) : 0;
   if (loop_print) {
     Serial.printf("PID Output: Roll=%.2f, Pitch=%.2f, Yaw=%.2f\n", pid_out.roll, pid_out.pitch, pid_out.yaw);
   }
@@ -628,6 +634,27 @@ bool wifi_signals(UserInput &user_input, bool &emergency, const WebInterfaceData
   else if (client_request.indexOf("yaw_toggle") > 0) {
     Serial.println("Toggling yaw correction");
     user_input.rpy_on.yaw = !user_input.rpy_on.yaw;
+  }
+  else if (client_request.indexOf("p_roll?p_roll=") > 0) {
+    int start_index = client_request.indexOf('=') + 1;
+    int end_index = client_request.indexOf(' ', start_index);
+    String v = client_request.substring(start_index, end_index);
+    user_input.rpy_coeffs.roll = v.toFloat();
+    Serial.printf("Changing roll P coefficient to %.2f\n", v.toFloat());
+  }
+  else if (client_request.indexOf("p_pitch?p_pitch=") > 0) {
+    int start_index = client_request.indexOf('=') + 1;
+    int end_index = client_request.indexOf(' ', start_index);
+    String v = client_request.substring(start_index, end_index);
+    user_input.rpy_coeffs.pitch = v.toFloat();
+    Serial.printf("Changing pitch P coefficient to %.2f\n", v.toFloat());
+  }
+  else if (client_request.indexOf("p_yaw?p_yaw=") > 0) {
+    int start_index = client_request.indexOf('=') + 1;
+    int end_index = client_request.indexOf(' ', start_index);
+    String v = client_request.substring(start_index, end_index);
+    user_input.rpy_coeffs.yaw = v.toFloat();
+    Serial.printf("Changing yaw P coefficient to %.2f\n", v.toFloat());
   }
   else if (client_request.indexOf("dummyRPY") > 0) {
     user_input.rpy = Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT);

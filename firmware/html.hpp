@@ -10,6 +10,7 @@ struct WebInterfaceData {
     float alt;
     bool alt_cal;
     bool imu_cal;
+    float roll_coeff, pitch_coeff, yaw_coeff;
 };
 
 auto html_running = [](const WebInterfaceData &data) -> String {
@@ -104,6 +105,12 @@ auto html_running = [](const WebInterfaceData &data) -> String {
             <span class="alt-cal">Alt Cal:</span> )" + String(data.alt_cal ? "Yes" : "No") + R"(
         </div>
 
+        <div class="info">
+            <span class="p-roll">P Roll:</span> )" + String(data.roll_coeff) + R"(
+            <span class="p-pitch">P Pitch:</span> )" + String(data.pitch_coeff) + R"(
+            <span class="p-yaw">P Yaw:</span> )" + String(data.yaw_coeff) + R"(
+        </div>
+
         <form id="F1" action="motor_on" method="POST">
             <input type="submit" value="motor_on" class="button green-button">
         </form>
@@ -115,27 +122,36 @@ auto html_running = [](const WebInterfaceData &data) -> String {
         <form id="F3" action="motor_value" method="GET">
             <label for="motor_value"><strong>set_motor_value:</strong></label><br>
             <input type="number" name="motor_value" id="motor_value" required>
-            <br>
-            <input type="submit" value="set_motor_value" class="button blue-button">
+        </form>
+
+        <form id="F10" action="p_roll" method="GET">
+            <label for="p_roll"><strong>set_p_roll:</strong></label><br>
+            <input type="number" name="p_roll" id="p_roll" step="any" required>
+        </form>
+
+        <form id="F11" action="p_pitch" method="GET">
+            <label for="p_pitch"><strong>set_p_pitch:</strong></label><br>
+            <input type="number" name="p_pitch" id="p_pitch" step="any" required>
+        </form>
+
+        <form id="F12" action="p_yaw" method="GET">
+            <label for="p_yaw"><strong>set_p_yaw:</strong></label><br>
+            <input type="number" name="p_yaw" id="p_yaw" step="any" required>
         </form>
 
         <div style="display: flex; justify-content: center;">
-            <form id="F5" action="roll_toggle" method="POST">
+            <form id="F20" action="roll_toggle" method="POST">
             <input type="submit" value="roll_toggle" class="button green-button">
             </form>
 
-            <form id="F6" action="pitch_toggle" method="POST">
+            <form id="F21" action="pitch_toggle" method="POST">
             <input type="submit" value="pitch_toggle" class="button green-button">
             </form>
 
-            <form id="F7" action="yaw_toggle" method="POST">
+            <form id="F22" action="yaw_toggle" method="POST">
             <input type="submit" value="yaw_toggle" class="button green-button">
             </form>
         </div>
-
-        <form id="F4" action="download" method="GET">
-            <input type="submit" value="Download Data" class="button blue-button">
-        </form>
     </div>
 </body>
 </html>
