@@ -163,7 +163,7 @@ struct Rpy {
 const Rpy<Pid> kPidCoeffs = {
   {0.6, 3.5, 0.03},
   {0.6, 3.5, 0.03},
-  {0.6, 12, 0},
+  {2.0, 12, 0},
 };
 struct UserInput {
   Rpy<float> rpy;
