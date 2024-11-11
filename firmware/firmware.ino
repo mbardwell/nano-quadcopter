@@ -331,12 +331,21 @@ void loop() {
   if (loop_print) {
     Serial.printf("PID Output: Roll=%.2f, Pitch=%.2f, Yaw=%.2f\n", pid_out.roll, pid_out.pitch, pid_out.yaw);
   }
+  static unsigned first_five = 5;
   if (user_input.on) {
-    m_values = calculate_motor_signals(user_input.throttle, pid_out);
-    motor_signals(m_values);
+    if (first_five > 0) {
+      const unsigned PULSE_LOW = ESC_MIN + 50;
+      motor_signals({PULSE_LOW, PULSE_LOW, PULSE_LOW, PULSE_LOW});
+      first_five--;
+    }
+    else {
+      m_values = calculate_motor_signals(user_input.throttle, pid_out);
+      motor_signals(m_values);
+    }
   }
   else {
     motor_off();
+    first_five = 5;
   }
 
   if (!emergency) {
