@@ -163,7 +163,7 @@ struct Rpy {
 const Rpy<Pid> kPidCoeffs = {
   {0.6, 3.5, 0.03},
   {0.6, 3.5, 0.03},
-  {2, 12, 0},
+  {0.6, 12, 0},
 };
 struct UserInput {
   Rpy<float> rpy;
@@ -200,12 +200,12 @@ struct BmpData {
 struct Telemetry {
   unsigned long time;
   float throttle;
-  Rpy<float> input, desired, error, pid;
+  Rpy<float> input, desired, raw, error, pid;
   Motor motor;
   float voltage;
   float current;
 };
-CircularBuffer<Telemetry, 2000> telemetry_store;
+CircularBuffer<Telemetry, 1900> telemetry_store;
 
 void imu_setup();
 bool imu_calibration(Rpy<float> &);
@@ -338,6 +338,7 @@ void loop() {
     user_input.throttle, 
     user_input.rpy,
     desired,
+    imu_rate,
     error,
     pid_out,
     m_values,
@@ -525,7 +526,7 @@ void motor_off() {
 Rpy<float> angular_rate_of_input(const Rpy<float> &input) {
   auto calculate_desired = [](float input_value) -> float {
     const float SLOPE = 0.15;  // This correspond to 75°/s at max input
-    const unsigned DEFAULT_INPUT = 1500;
+    const float DEFAULT_INPUT = 1500.0;
     return SLOPE * (input_value - DEFAULT_INPUT);
   };
 
@@ -547,10 +548,10 @@ Motor calculate_motor_signals(float throttle, const Rpy<float> &pid_output) {
   }
 
   const float MAGIC_MOTOR = 1.024;
-  m.one = MAGIC_MOTOR * (throttle - pid_output.roll - pid_output.pitch - pid_output.yaw);
-  m.two = MAGIC_MOTOR * (throttle - pid_output.roll + pid_output.pitch + pid_output.yaw);
-  m.three = MAGIC_MOTOR * (throttle + pid_output.roll + pid_output.pitch - pid_output.yaw);
-  m.four = MAGIC_MOTOR * (throttle + pid_output.roll - pid_output.pitch + pid_output.yaw);
+  m.one = MAGIC_MOTOR * (throttle + pid_output.roll - pid_output.pitch - pid_output.yaw);
+  m.two = MAGIC_MOTOR * (throttle - pid_output.roll - pid_output.pitch + pid_output.yaw);
+  m.three = MAGIC_MOTOR * (throttle - pid_output.roll + pid_output.pitch - pid_output.yaw);
+  m.four = MAGIC_MOTOR * (throttle + pid_output.roll + pid_output.pitch + pid_output.yaw);
 
   return m;
 }
@@ -620,13 +621,15 @@ bool wifi_signals(UserInput &user_input, bool &emergency, const WebInterfaceData
   }
   else if (client_request.indexOf("download") > 0) {
     Serial.println("Download data");
-    client.println("time,throttle,input_roll,input_pitch,input_yaw,desired_roll,desired_pitch,desired_yaw,error_roll,error_pitch,error_yaw,pid_roll,pid_pitch,pid_yaw,motor_one,motor_two,motor_three,motor_four,voltage,current");
+    client.println("HTTP/1.1 200 OK\r\n");
+    client.println("time,throttle,input_roll,input_pitch,input_yaw,desired_roll,desired_pitch,desired_yaw,raw_roll,raw_pitch,raw_yaw,error_roll,error_pitch,error_yaw,pid_roll,pid_pitch,pid_yaw,motor_one,motor_two,motor_three,motor_four,voltage,current");
     for (size_t i = 0; i < telemetry_store.size(); ++i) {
       auto entry = telemetry_store[i];
-      client.printf("%d,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%d,%d,%.2f,%.2f\n",
+      client.printf("%d,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%d,%d,%.2f,%.2f\n",
                     entry.time, entry.throttle, 
                     entry.input.roll, entry.input.pitch, entry.input.yaw,
                     entry.desired.roll, entry.desired.pitch, entry.desired.yaw, 
+                    entry.raw.roll, entry.raw.pitch, entry.raw.yaw,
                     entry.error.roll, entry.error.pitch, entry.error.yaw, 
                     entry.pid.roll, entry.pid.pitch, entry.pid.yaw, 
                     entry.motor.one, entry.motor.two, entry.motor.three, entry.motor.four, 
