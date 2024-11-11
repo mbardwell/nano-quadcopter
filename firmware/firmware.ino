@@ -167,12 +167,13 @@ const Rpy<Pid> kPidCoeffs = {
 };
 struct UserInput {
   Rpy<float> rpy;
+  Rpy<bool> rpy_on;
   float throttle;
   bool on;
 
   void print() const {
-    Serial.printf("User Input: Roll=%.2f, Pitch=%.2f, Yaw=%.2f, Throttle=%.2f, On=%s\n", 
-                  rpy.roll, rpy.pitch, rpy.yaw, throttle, on ? "true" : "false");
+    Serial.printf("User Input: Roll=%.2f, Pitch=%.2f, Yaw=%.2f, Throttle=%.2f, Roll On=%s, Pitch On=%s, Yaw On=%s, Motor On=%s\n",
+                  rpy.roll, rpy.pitch, rpy.yaw, throttle, rpy_on.roll ? "true" : "false", rpy_on.pitch ? "true" : "false", rpy_on.yaw ? "true" : "false", on ? "true" : "false");
   }
 };
 struct BmpData {
@@ -256,7 +257,7 @@ void loop() {
   static Rpy<float> imu_cal, imu_rate, pid_mem_err, pid_mem_iterm;
   static Motor m_values;
   static bool emergency = false;
-  static UserInput user_input = {Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT), THROTTLE_IDLE, false};
+  static UserInput user_input = {Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT), Rpy<bool>{true, true, true}, THROTTLE_IDLE, false};
   static BmpData bmp_data;
   static WebInterfaceData web_data;
 
@@ -318,9 +319,9 @@ void loop() {
   Rpy<float> desired = angular_rate_of_input(user_input.rpy);
   Rpy<float> error = desired - imu_rate;
   Rpy<float> pid_out;
-  pid_out.roll = pid_equation(kPidCoeffs.roll, error.roll, pid_mem_err.roll, pid_mem_iterm.roll);
-  pid_out.pitch = pid_equation(kPidCoeffs.pitch, error.pitch, pid_mem_err.pitch, pid_mem_iterm.pitch);
-  pid_out.yaw = pid_equation(kPidCoeffs.yaw, error.yaw, pid_mem_err.yaw, pid_mem_iterm.yaw);
+  pid_out.roll = user_input.rpy_on.roll ? pid_equation(kPidCoeffs.roll, error.roll, pid_mem_err.roll, pid_mem_iterm.roll) : 0;
+  pid_out.pitch = user_input.rpy_on.pitch ? pid_equation(kPidCoeffs.pitch, error.pitch, pid_mem_err.pitch, pid_mem_iterm.pitch) : 0;
+  pid_out.yaw = user_input.rpy_on.yaw ? pid_equation(kPidCoeffs.yaw, error.yaw, pid_mem_err.yaw, pid_mem_iterm.yaw) : 0;
   if (loop_print) {
     Serial.printf("PID Output: Roll=%.2f, Pitch=%.2f, Yaw=%.2f\n", pid_out.roll, pid_out.pitch, pid_out.yaw);
   }
@@ -615,6 +616,18 @@ bool wifi_signals(UserInput &user_input, bool &emergency, const WebInterfaceData
     String motor_value_s = client_request.substring(start_index, end_index);
     user_input.throttle = motor_value_s.toFloat();
     Serial.printf("Setting motor value to %.2f\n", user_input.throttle);
+  }
+  else if (client_request.indexOf("roll_toggle") > 0) {
+    Serial.println("Toggling roll correction");
+    user_input.rpy_on.roll = !user_input.rpy_on.roll;
+  }
+  else if (client_request.indexOf("pitch_toggle") > 0) {
+    Serial.println("Toggling pitch correction");
+    user_input.rpy_on.pitch = !user_input.rpy_on.pitch;
+  }
+  else if (client_request.indexOf("yaw_toggle") > 0) {
+    Serial.println("Toggling yaw correction");
+    user_input.rpy_on.yaw = !user_input.rpy_on.yaw;
   }
   else if (client_request.indexOf("dummyRPY") > 0) {
     user_input.rpy = Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT);

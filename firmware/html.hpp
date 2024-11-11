@@ -119,6 +119,20 @@ auto html_running = [](const WebInterfaceData &data) -> String {
             <input type="submit" value="set_motor_value" class="button blue-button">
         </form>
 
+        <div style="display: flex; justify-content: center;">
+            <form id="F5" action="roll_toggle" method="POST">
+            <input type="submit" value="roll_toggle" class="button green-button">
+            </form>
+
+            <form id="F6" action="pitch_toggle" method="POST">
+            <input type="submit" value="pitch_toggle" class="button green-button">
+            </form>
+
+            <form id="F7" action="yaw_toggle" method="POST">
+            <input type="submit" value="yaw_toggle" class="button green-button">
+            </form>
+        </div>
+
         <form id="F4" action="download" method="GET">
             <input type="submit" value="Download Data" class="button blue-button">
         </form>
