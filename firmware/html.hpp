@@ -10,7 +10,7 @@ struct WebInterfaceData {
     float alt;
     bool alt_cal;
     bool imu_cal;
-    float roll_coeff, pitch_coeff, yaw_coeff;
+    float roll_p, roll_i, roll_d, pitch_p, pitch_i, pitch_d, yaw_p, yaw_i, yaw_d;
 };
 
 auto html_running = [](const WebInterfaceData &data) -> String {
@@ -65,9 +65,9 @@ auto html_running = [](const WebInterfaceData &data) -> String {
             color: #E91E63;
         }
         .button {
-            padding: 20px 40px;
-            font-size: 24px;
-            margin: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 10px;
             cursor: pointer;
             color: white;
             border: none;
@@ -83,14 +83,14 @@ auto html_running = [](const WebInterfaceData &data) -> String {
             background-color: #008CBA;
         }
         form {
-            margin: 20px 0;
+            margin: 10px 0;
         }
         input[type="number"] {
-            padding: 10px;
-            font-size: 18px;
-            margin: 10px;
-            width: 100%;
-            max-width: 300px;
+            padding: 5px;
+            font-size: 9px;
+            margin: 5px;
+            width: 50%;
+            max-width: 150px;
         }
     </style>
 </head>
@@ -105,12 +105,6 @@ auto html_running = [](const WebInterfaceData &data) -> String {
             <span class="alt-cal">Alt Cal:</span> )" + String(data.alt_cal ? "Yes" : "No") + R"(
         </div>
 
-        <div class="info">
-            <span class="p-roll">P Roll:</span> )" + String(data.roll_coeff) + R"(
-            <span class="p-pitch">P Pitch:</span> )" + String(data.pitch_coeff) + R"(
-            <span class="p-yaw">P Yaw:</span> )" + String(data.yaw_coeff) + R"(
-        </div>
-
         <form id="F1" action="motor_on" method="POST">
             <input type="submit" value="motor_on" class="button green-button">
         </form>
@@ -123,21 +117,36 @@ auto html_running = [](const WebInterfaceData &data) -> String {
             <label for="motor_value"><strong>set_motor_value:</strong></label><br>
             <input type="number" name="motor_value" id="motor_value" required>
         </form>
-
-        <form id="F10" action="p_roll" method="GET">
-            <label for="p_roll"><strong>set_p_roll:</strong></label><br>
-            <input type="number" name="p_roll" id="p_roll" step="any" required>
-        </form>
-
-        <form id="F11" action="p_pitch" method="GET">
-            <label for="p_pitch"><strong>set_p_pitch:</strong></label><br>
-            <input type="number" name="p_pitch" id="p_pitch" step="any" required>
-        </form>
-
-        <form id="F12" action="p_yaw" method="GET">
-            <label for="p_yaw"><strong>set_p_yaw:</strong></label><br>
-            <input type="number" name="p_yaw" id="p_yaw" step="any" required>
-        </form>
+        
+        <div class="info">
+            <h2>PID Coefficients</h2>
+            <table style="margin: 0 auto;">
+            <tr>
+                <th></th>
+                <th>P</th>
+                <th>I</th>
+                <th>D</th>
+            </tr>
+            <tr>
+                <td>Roll</td>
+                <form id="F10" action="p_roll" method="GET"><td>)" + String(data.roll_p) + R"(<input type="number" name="p_roll" id="p_roll" step="any" required></td></form>
+                <form id="F11" action="i_roll" method="GET"><td>)" + String(data.roll_i) + R"(<input type="number" name="i_roll" id="i_roll" step="any" required></td></form>
+                <form id="F12" action="d_roll" method="GET"><td>)" + String(data.roll_d) + R"(<input type="number" name="d_roll" id="d_roll" step="any" required></td></form>
+            </tr>
+            <tr>
+                <td>Pitch</td>
+                <form id="F13" action="p_pitch" method="GET"><td>)" + String(data.pitch_p) + R"(<input type="number" name="p_pitch" id="p_pitch" step="any" required></td></form>
+                <form id="F14" action="i_pitch" method="GET"><td>)" + String(data.pitch_i) + R"(<input type="number" name="i_pitch" id="i_pitch" step="any" required></td></form>
+                <form id="F15" action="d_pitch" method="GET"><td>)" + String(data.pitch_d) + R"(<input type="number" name="d_pitch" id="d_pitch" step="any" required></td></form>
+            </tr>
+            <tr>
+                <td>Yaw</td>
+                <form id="F16" action="p_yaw" method="GET"><td>)" + String(data.yaw_p) + R"(<input type="number" name="p_yaw" id="p_yaw" step="any" required></td></form>
+                <form id="F17" action="i_yaw" method="GET"><td>)" + String(data.yaw_i) + R"(<input type="number" name="i_yaw" id="i_yaw" step="any" required></td></form>
+                <form id="F18" action="d_yaw" method="GET"><td>)" + String(data.yaw_d) + R"(<input type="number" name="d_yaw" id="d_yaw" step="any" required></td></form>
+            </tr>
+            </table>
+        </div>
 
         <div style="display: flex; justify-content: center;">
             <form id="F20" action="roll_toggle" method="POST">

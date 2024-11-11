@@ -161,7 +161,8 @@ struct Rpy {
   }
 };
 struct UserInput {
-  Rpy<float> rpy, rpy_coeffs;
+  Rpy<float> rpy;
+  Rpy<Pid> &pid_coeffs;
   Rpy<bool> rpy_on;
   float throttle;
   bool on;
@@ -259,7 +260,13 @@ void loop() {
     {0.3, 3.5, 0.03},
     {1.0, 12, 0},
   };
-  static UserInput user_input = {Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT), Rpy<float>{pid_coeffs.roll.p, pid_coeffs.pitch.p, pid_coeffs.yaw.p}, Rpy<bool>{true, true, true}, THROTTLE_IDLE, false};
+  static UserInput user_input = {
+    Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT), 
+    pid_coeffs,
+    Rpy<bool>{true, true, true},
+    THROTTLE_IDLE,
+    false
+    };
 
   // Keep this at the top
   if (emergency) {
@@ -313,18 +320,21 @@ void loop() {
     if (user_input.throttle < THROTTLE_MIN + 50) {
       pid_reset(pid_mem_err, pid_mem_iterm);
     }
+    web_data.roll_p = pid_coeffs.roll.p;
+    web_data.roll_i = pid_coeffs.roll.i;
+    web_data.roll_d = pid_coeffs.roll.d;
+    web_data.pitch_p = pid_coeffs.pitch.p;
+    web_data.pitch_i = pid_coeffs.pitch.i;
+    web_data.pitch_d = pid_coeffs.pitch.d;
+    web_data.yaw_p = pid_coeffs.yaw.p;
+    web_data.yaw_i = pid_coeffs.yaw.i;
+    web_data.yaw_d = pid_coeffs.yaw.d;
   }
 
   user_input.throttle = min(max(user_input.throttle, THROTTLE_MIN), THROTTLE_MAX);
   Rpy<float> desired = angular_rate_of_input(user_input.rpy);
   Rpy<float> error = desired - imu_rate;
   Rpy<float> pid_out;
-  web_data.roll_coeff = pid_coeffs.roll.p;
-  web_data.pitch_coeff = pid_coeffs.pitch.p;
-  web_data.yaw_coeff = pid_coeffs.yaw.p;
-  pid_coeffs.roll.p = user_input.rpy_coeffs.roll;
-  pid_coeffs.pitch.p = user_input.rpy_coeffs.pitch;
-  pid_coeffs.yaw.p = user_input.rpy_coeffs.yaw;
   pid_out.roll = user_input.rpy_on.roll ? pid_equation(pid_coeffs.roll, error.roll, pid_mem_err.roll, pid_mem_iterm.roll) : 0;
   pid_out.pitch = user_input.rpy_on.pitch ? pid_equation(pid_coeffs.pitch, error.pitch, pid_mem_err.pitch, pid_mem_iterm.pitch) : 0;
   pid_out.yaw = user_input.rpy_on.yaw ? pid_equation(pid_coeffs.yaw, error.yaw, pid_mem_err.yaw, pid_mem_iterm.yaw) : 0;
@@ -615,6 +625,14 @@ bool wifi_signals(UserInput &user_input, bool &emergency, const WebInterfaceData
   if (!client)
     return false;
 
+  auto update_pid_coeff = [&](const String &prefix, float &coeff) {
+    int start_index = client_request.indexOf('=') + 1;
+    int end_index = client_request.indexOf(' ', start_index);
+    String v = client_request.substring(start_index, end_index);
+    coeff = v.toFloat();
+    Serial.printf("Changing %s coefficient to %.2f\n", prefix.c_str(), v.toFloat());
+  };
+
   client_request = client.readStringUntil('\n');
   Serial.printf("Client request: %s\n", client_request.c_str());
   if (client_request.indexOf("motor_on") > 0) {
@@ -645,25 +663,28 @@ bool wifi_signals(UserInput &user_input, bool &emergency, const WebInterfaceData
     user_input.rpy_on.yaw = !user_input.rpy_on.yaw;
   }
   else if (client_request.indexOf("p_roll?p_roll=") > 0) {
-    int start_index = client_request.indexOf('=') + 1;
-    int end_index = client_request.indexOf(' ', start_index);
-    String v = client_request.substring(start_index, end_index);
-    user_input.rpy_coeffs.roll = v.toFloat();
-    Serial.printf("Changing roll P coefficient to %.2f\n", v.toFloat());
+    update_pid_coeff("p_roll", user_input.pid_coeffs.roll.p);
   }
-  else if (client_request.indexOf("p_pitch?p_pitch=") > 0) {
-    int start_index = client_request.indexOf('=') + 1;
-    int end_index = client_request.indexOf(' ', start_index);
-    String v = client_request.substring(start_index, end_index);
-    user_input.rpy_coeffs.pitch = v.toFloat();
-    Serial.printf("Changing pitch P coefficient to %.2f\n", v.toFloat());
+  else if (client_request.indexOf("i_roll?i_roll=") > 0) {
+    update_pid_coeff("i_roll", user_input.pid_coeffs.roll.i);
+  }
+  else if (client_request.indexOf("d_roll?d_roll=") > 0) {
+    update_pid_coeff("d_roll", user_input.pid_coeffs.roll.d);
+  }
+  else if (client_request.indexOf("i_pitch?i_pitch=") > 0) {
+    update_pid_coeff("i_pitch", user_input.pid_coeffs.pitch.i);
+  }
+  else if (client_request.indexOf("d_pitch?d_pitch=") > 0) {
+    update_pid_coeff("d_pitch", user_input.pid_coeffs.pitch.d);
   }
   else if (client_request.indexOf("p_yaw?p_yaw=") > 0) {
-    int start_index = client_request.indexOf('=') + 1;
-    int end_index = client_request.indexOf(' ', start_index);
-    String v = client_request.substring(start_index, end_index);
-    user_input.rpy_coeffs.yaw = v.toFloat();
-    Serial.printf("Changing yaw P coefficient to %.2f\n", v.toFloat());
+    update_pid_coeff("p_yaw", user_input.pid_coeffs.yaw.p);
+  }
+  else if (client_request.indexOf("i_yaw?i_yaw=") > 0) {
+    update_pid_coeff("i_yaw", user_input.pid_coeffs.yaw.i);
+  }
+  else if (client_request.indexOf("d_yaw?d_yaw=") > 0) {
+    update_pid_coeff("d_yaw", user_input.pid_coeffs.yaw.d);
   }
   else if (client_request.indexOf("dummyRPY") > 0) {
     user_input.rpy = Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT);
