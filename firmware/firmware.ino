@@ -571,7 +571,7 @@ float pid_equation(const Pid constants, float err, float &prev_err, float &prev_
   float i_err = prev_iterm + constants.i * (err + prev_err) * MAGIC_TERM / MAGIC_I_DIV;
   i_err = min(max(i_err, -MAGIC_CAP), MAGIC_CAP);
   float d_err = constants.d * (err - prev_err ) / MAGIC_TERM;
-  float pid_output = p_err;// + i_err + d_err;
+  float pid_output = p_err + i_err + d_err;
   pid_output = min(max(pid_output, -MAGIC_CAP), MAGIC_CAP);
   prev_err = err;
   prev_iterm = i_err;
