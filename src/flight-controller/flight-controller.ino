@@ -1,8 +1,8 @@
 /**
- * @file firmware.ino
- * @brief Firmware for a nano quadcopter project using various sensors and WiFi communication.
+ * @file flight-controller.ino
+ * @brief Flight controller for a nano quadcopter project using various sensors and WiFi communication.
  * 
- * This firmware controls a nano quadcopter, handling motor signals, sensor data acquisition,
+ * This nano quadcopter flight controller handles motor signals, sensor data acquisition,
  * and WiFi communication for remote control and telemetry. It includes PID control for 
  * stabilizing the quadcopter based on IMU and pressure sensor data.
  * 
@@ -10,7 +10,7 @@
  * Join that, then open a browser and go to 192.168.42.1:4242 to access the control interface.
  * 
  * @details
- * The firmware includes the following functionalities:
+ * The flight controller includes the following functionalities:
  * - IMU setup and calibration
  * - Pressure sensor setup and altitude calculation
  * - Power monitoring setup and signal processing
