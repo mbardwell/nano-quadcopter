@@ -1,10 +1,24 @@
+/**
+ * @file esc-settings.ino
+ * @brief ESC (Electronic Speed Controller) settings for a nano quadcopter.
+ *
+ * This program initializes and controls four ESCs using the Servo library.
+ * It sets up serial communication to receive commands for adjusting the throttle.
+ *
+ * @details Use this script to apply the following non-default settings:
+ * - Angle of entrance: High
+ * - Startup of motor: Accelerated startup
+ * - PWM frequency: 16Hz
+ * - Protection mode: Cutoff
+ */
+
 #include <Servo.h>
 
-constexpr pin_size_t PIN_M1 = 0;
-constexpr pin_size_t PIN_M2 = 2;
-constexpr pin_size_t PIN_M3 = 4;
-constexpr pin_size_t PIN_M4 = 6;
-Servo m1_esc, m2_esc, m3_esc, m4_esc;
+constexpr pin_size_t PIN_M1 = 0; ///< Pin for Motor 1 ESC
+constexpr pin_size_t PIN_M2 = 2; ///< Pin for Motor 2 ESC
+constexpr pin_size_t PIN_M3 = 4; ///< Pin for Motor 3 ESC
+constexpr pin_size_t PIN_M4 = 6; ///< Pin for Motor 4 ESC
+Servo m1_esc, m2_esc, m3_esc, m4_esc; ///< Servo objects for each ESC
 
 void setup() {
   Serial.begin(115200);
@@ -16,10 +30,14 @@ void setup() {
   m4_esc.attach(PIN_M4);
 }
 
+/**
+ * @brief Main loop function to read serial input and adjust throttle accordingly.
+ *
+ * The throttle is set to 2000 microseconds when the up arrow key is pressed,
+ * and to 1000 microseconds when the down arrow key is pressed.
+ * The throttle value is sent to all four ESCs.
+ */
 void loop() {
-/* Push the pull rod of throttle in the ESC to the highest position to make the ESC enter the setting mode and
-then turn on the ESC.
-*/
     static int throttle = 2000;
     if (Serial.available() > 0) {
         byte receivedByte = Serial.read();
