@@ -256,9 +256,9 @@ void loop() {
   static BmpData bmp_data;
   static WebInterfaceData web_data;
   static Rpy<Pid> pid_coeffs = {
-    {0.6, 3.5, 0.03},
-    {0.3, 3.5, 0.03},
-    {1.0, 12, 0},
+    {0.6, 0.001, 0.03},
+    {0.3, 0.001, 0.03},
+    {1.0, 0.005, 0},
   };
   static UserInput user_input = {
     Rpy<float>(RPY_DEFAULT, RPY_DEFAULT, RPY_DEFAULT), 
