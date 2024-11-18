@@ -317,9 +317,6 @@ void loop() {
 
   if (wifi_signals(user_input, emergency, web_data)) {
     user_input.print();
-    if (user_input.throttle < THROTTLE_MIN + 50) {
-      pid_reset(pid_mem_err, pid_mem_iterm);
-    }
     web_data.roll_p = pid_coeffs.roll.p;
     web_data.roll_i = pid_coeffs.roll.i;
     web_data.roll_d = pid_coeffs.roll.d;
@@ -355,6 +352,7 @@ void loop() {
   }
   else {
     motor_off();
+    pid_reset(pid_mem_err, pid_mem_iterm);
     first_five = 5;
   }
 
