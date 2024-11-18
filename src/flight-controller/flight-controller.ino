@@ -583,15 +583,10 @@ Motor calculate_motor_signals(float throttle, const Rpy<float> &pid_output) {
 }
 
 float pid_equation(const Pid constants, float err, float &prev_err, float &prev_iterm) {
-  const int MAGIC_CAP = 400;
-  const float MAGIC_TERM = 0.004;
-  const unsigned MAGIC_I_DIV = 2;
   float p_err = constants.p * err;
-  float i_err = prev_iterm + constants.i * (err + prev_err) * MAGIC_TERM / MAGIC_I_DIV;
-  i_err = min(max(i_err, -MAGIC_CAP), MAGIC_CAP);
-  float d_err = constants.d * (err - prev_err ) / MAGIC_TERM;
+  float i_err = prev_iterm + constants.i * (err + prev_err);
+  float d_err = constants.d * (err - prev_err );
   float pid_output = p_err + i_err + d_err;
-  pid_output = min(max(pid_output, -MAGIC_CAP), MAGIC_CAP);
   prev_err = err;
   prev_iterm = i_err;
   return pid_output;
