@@ -100,7 +100,7 @@ constexpr pin_size_t PIN_VMON = A1;
 constexpr byte I2C_ADDRESS_MPU = 0x68;
 constexpr char WIFI_SSID[] = "FBI-surveillance-van";
 constexpr unsigned WIFI_PORT = 4242;
-constexpr unsigned EMERGENCY_KILL_MS = 30000;
+constexpr unsigned EMERGENCY_KILL_MS = 60000;
 constexpr unsigned THROTTLE_MAX = 1800;  // Throttle max must leave headroom for roll, pitch, yaw-ing at max throttle
 constexpr unsigned THROTTLE_IDLE = 1180;
 constexpr unsigned THROTTLE_MIN = 1000;
@@ -247,7 +247,6 @@ void setup() {
 
 void loop() {
   const int PRINT_PERIOD_MS = 5000;
-  const float ANGULAR_RATE_EMERGENCY_CUTOFF = 150.0;
   static int print_hold = 0;
   static bool loop_print = false;
   static Rpy<float> imu_cal, imu_rate, pid_mem_err, pid_mem_iterm;
@@ -303,11 +302,6 @@ void loop() {
 
   if (imu_signals(imu_cal, imu_rate) && loop_print) {
     Serial.printf("Roll rate [°/s]=%.2f, Pitch rate [°/s]=%.2f, Yaw rate [°/s]=%.2f\n", imu_rate.roll, imu_rate.pitch, imu_rate.yaw);
-  }
-  if (abs(imu_rate.roll) > ANGULAR_RATE_EMERGENCY_CUTOFF || abs(imu_rate.pitch) > ANGULAR_RATE_EMERGENCY_CUTOFF) {
-    Serial.println("Emergency cutoff due to high angular rate");
-    emergency = true;
-    return;
   }
 
   if (pressure_signals(bmp_data) && loop_print) {
