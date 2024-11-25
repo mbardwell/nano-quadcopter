@@ -389,8 +389,27 @@ bool pmon_signals() {
 
 void imu_setup() {
   Wire.beginTransmission(I2C_ADDRESS_MPU);
-  Wire.write(0x6B);
-  Wire.write(0x00);
+  Wire.write(0x75); // WHO_AM_I register
+  Wire.endTransmission();
+  Wire.requestFrom(I2C_ADDRESS_MPU, 1);
+  if (Wire.available()) {
+    byte who_am_i = Wire.read();
+    if (who_am_i != 0x68) {
+      Serial.printf("Unexpected WHO_AM_I value: 0x%02X\n", who_am_i);
+      return;
+    }
+  }
+  Wire.beginTransmission(I2C_ADDRESS_MPU);
+  Wire.write(0x6B); // PWR Management 1
+  Wire.write(0x01); // Change clock source from default as recommended
+  Wire.endTransmission();
+  Wire.beginTransmission(I2C_ADDRESS_MPU);
+  Wire.write(0x1A); // LPF
+  Wire.write(0x06); // [value,BW Hz]: [4,21],[5,10],[6,5]
+  Wire.endTransmission();
+  Wire.beginTransmission(I2C_ADDRESS_MPU);
+  Wire.write(0x1B); // Gyro Config
+  Wire.write(0x08); // FSR +/- 500 deg/s
   Wire.endTransmission();
   delay(250);
 }
@@ -416,32 +435,30 @@ bool imu_calibration(Rpy<float> &cal) {
 }
 
 bool imu_signals(const Rpy<float> &cal, Rpy<float> &gyro) {
-  const float DEG_TO_LSB = 65.5;
-  int16_t raw_x = 0;
-  int16_t raw_y = 0;
-  int16_t raw_z = 0;
+  const float LSB_PER_DEG_PER_S = 65.5;
   Wire.beginTransmission(I2C_ADDRESS_MPU);
-  Wire.write(0x1A);
-  Wire.write(0x05);
+  Wire.write(0x43); // Point to Gyro Data. May want to call this in the loop
   Wire.endTransmission();
-  Wire.beginTransmission(I2C_ADDRESS_MPU);
-  Wire.write(0x1B);
-  Wire.write(0x8);
-  Wire.endTransmission();
-  Wire.beginTransmission(I2C_ADDRESS_MPU);
-  Wire.write(0x43);
-  Wire.endTransmission();
-  Wire.requestFrom(I2C_ADDRESS_MPU, 6);
-  if (Wire.available() == 6) {
-    raw_x = Wire.read() << 8 | Wire.read();
-    raw_y = Wire.read() << 8 | Wire.read();
-    raw_z = Wire.read() << 8 | Wire.read();
-    gyro.roll = (static_cast<float>(raw_x) / DEG_TO_LSB) - cal.roll;
-    gyro.pitch = (static_cast<float>(raw_y) / DEG_TO_LSB) - cal.pitch;
-    gyro.yaw = (static_cast<float>(raw_z) / DEG_TO_LSB) - cal.yaw;
-    return true;
+  if (Wire.requestFrom(I2C_ADDRESS_MPU, 6) != 6) {
+    Serial.println("Warning: Failed to request from MPU");
+    return false;
   }
-  return false;
+  int timeout = 50;
+  do {
+    if (timeout-- <= 0) {
+      Serial.println("Warning: Timeout on MPU");
+      return false;
+    }
+    delay(1);
+  }
+  while (Wire.available() < 6);
+  int16_t raw_x = (Wire.read() << 8) | Wire.read();
+  int16_t raw_y = (Wire.read() << 8) | Wire.read();
+  int16_t raw_z = (Wire.read() << 8) | Wire.read();
+  gyro.roll = (static_cast<float>(raw_x) / LSB_PER_DEG_PER_S) - cal.roll;
+  gyro.pitch = (static_cast<float>(raw_y) / LSB_PER_DEG_PER_S) - cal.pitch;
+  gyro.yaw = (static_cast<float>(raw_z) / LSB_PER_DEG_PER_S) - cal.yaw;
+  return true;
 }
 
 void pressure_setup() {
