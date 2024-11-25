@@ -444,14 +444,8 @@ bool imu_signals(const Rpy<float> &cal, Rpy<float> &gyro) {
     return false;
   }
   int timeout = 50;
-  do {
-    if (timeout-- <= 0) {
-      Serial.println("Warning: Timeout on MPU");
-      return false;
-    }
+  while (Wire.available() < 6 && timeout-- != 0)
     delay(1);
-  }
-  while (Wire.available() < 6);
   int16_t raw_x = (Wire.read() << 8) | Wire.read();
   int16_t raw_y = (Wire.read() << 8) | Wire.read();
   int16_t raw_z = (Wire.read() << 8) | Wire.read();
