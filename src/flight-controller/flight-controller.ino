@@ -586,13 +586,23 @@ Motor calculate_motor_signals(float throttle, const Rpy<float> &pid_output) {
 }
 
 float pid_equation(const Pid constants, float err, float &prev_err, float &prev_iterm) {
-  float p_err = constants.p * err;
-  float i_err = prev_iterm + constants.i * (err + prev_err);
-  float d_err = constants.d * (err - prev_err );
-  float pid_output = p_err + i_err + d_err;
+  constexpr float kItermCap = 200;
+  constexpr float kDtermCap = 100;
+  static unsigned long last_run = 0;
+  float p_err, i_err, d_err;
+  p_err = constants.p * err;
+  if (millis() - last_run > 1) {
+    i_err = min(max(prev_iterm + constants.i * (err + prev_err), -kItermCap), kItermCap);
+    d_err = min(max(constants.d * (err - prev_err), -kDtermCap), kDtermCap);
+    last_run = millis();
+  }
+  else {
+    i_err = prev_iterm;
+    d_err = err;
+  }
   prev_err = err;
   prev_iterm = i_err;
-  return pid_output;
+  return p_err + i_err + d_err;
 }
 
 void pid_reset(Rpy<float> &prev_err, Rpy<float> &prev_iterm) {
