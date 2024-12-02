@@ -130,20 +130,20 @@ auto html_running = [](const WebInterfaceData &data) -> String {
             <tr>
                 <td>Roll</td>
                 <form id="F10" action="p_roll" method="GET"><td>)" + String(data.roll_p) + R"(<input type="number" name="p_roll" id="p_roll" step="any" required></td></form>
-                <form id="F11" action="i_roll" method="GET"><td>)" + String(data.roll_i) + R"(<input type="number" name="i_roll" id="i_roll" step="any" required></td></form>
-                <form id="F12" action="d_roll" method="GET"><td>)" + String(data.roll_d) + R"(<input type="number" name="d_roll" id="d_roll" step="any" required></td></form>
+                <form id="F11" action="i_roll" method="GET"><td>)" + String(data.roll_i, 3) + R"(<input type="number" name="i_roll" id="i_roll" step="any" required></td></form>
+                <form id="F12" action="d_roll" method="GET"><td>)" + String(data.roll_d, 2) + R"(<input type="number" name="d_roll" id="d_roll" step="any" required></td></form>
             </tr>
             <tr>
                 <td>Pitch</td>
                 <form id="F13" action="p_pitch" method="GET"><td>)" + String(data.pitch_p) + R"(<input type="number" name="p_pitch" id="p_pitch" step="any" required></td></form>
-                <form id="F14" action="i_pitch" method="GET"><td>)" + String(data.pitch_i) + R"(<input type="number" name="i_pitch" id="i_pitch" step="any" required></td></form>
-                <form id="F15" action="d_pitch" method="GET"><td>)" + String(data.pitch_d) + R"(<input type="number" name="d_pitch" id="d_pitch" step="any" required></td></form>
+                <form id="F14" action="i_pitch" method="GET"><td>)" + String(data.pitch_i, 3) + R"(<input type="number" name="i_pitch" id="i_pitch" step="any" required></td></form>
+                <form id="F15" action="d_pitch" method="GET"><td>)" + String(data.pitch_d, 2) + R"(<input type="number" name="d_pitch" id="d_pitch" step="any" required></td></form>
             </tr>
             <tr>
                 <td>Yaw</td>
                 <form id="F16" action="p_yaw" method="GET"><td>)" + String(data.yaw_p) + R"(<input type="number" name="p_yaw" id="p_yaw" step="any" required></td></form>
-                <form id="F17" action="i_yaw" method="GET"><td>)" + String(data.yaw_i) + R"(<input type="number" name="i_yaw" id="i_yaw" step="any" required></td></form>
-                <form id="F18" action="d_yaw" method="GET"><td>)" + String(data.yaw_d) + R"(<input type="number" name="d_yaw" id="d_yaw" step="any" required></td></form>
+                <form id="F17" action="i_yaw" method="GET"><td>)" + String(data.yaw_i, 3) + R"(<input type="number" name="i_yaw" id="i_yaw" step="any" required></td></form>
+                <form id="F18" action="d_yaw" method="GET"><td>)" + String(data.yaw_d, 2) + R"(<input type="number" name="d_yaw" id="d_yaw" step="any" required></td></form>
             </tr>
             </table>
         </div>
