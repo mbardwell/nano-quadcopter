@@ -669,6 +669,9 @@ bool wifi_signals(UserInput &user_input, bool &emergency, const WebInterfaceData
   else if (client_request.indexOf("d_roll?d_roll=") > 0) {
     update_pid_coeff("d_roll", user_input.pid_coeffs.roll.d);
   }
+  else if (client_request.indexOf("p_pitch?p_pitch=") > 0) {
+    update_pid_coeff("p_pitch", user_input.pid_coeffs.pitch.p);
+  }
   else if (client_request.indexOf("i_pitch?i_pitch=") > 0) {
     update_pid_coeff("i_pitch", user_input.pid_coeffs.pitch.i);
   }
